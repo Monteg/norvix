@@ -47,6 +47,12 @@ $auroraNode = 'C:\Users\Gener\.cache\codex-runtimes\codex-primary-runtime\depend
 http://localhost:3000/aurora-codepen
 ```
 
+Чистый synchronized output:
+
+```text
+http://localhost:3000/aurora-clean
+```
+
 Соседний URL:
 
 ```text
@@ -117,33 +123,44 @@ npm test
 
 ## 5. Что проверяют тесты
 
-Сейчас есть 4 test cases:
+Сейчас есть 6 test cases:
 
 1. SSR shell `/aurora-prototype`.
 2. SSR shell `/aurora-codepen` и наличие основных controls.
-3. Критические свойства Nimitz implementation:
+3. SSR shell `/aurora-clean` и отсутствие interface markup.
+4. Versioned save/load и inter-tab delivery для combined Aurora + Sky preset.
+5. Критические свойства Nimitz implementation:
    - transparent renderer/blending;
-   - shader attribution markers;
-   - отсутствие shader-rendered sky/stars;
+   - shader attribution markers и отсутствие image samplers;
+   - отдельный procedural star canvas с twinkle/reduced-motion lifecycle;
+   - typed sky defaults, SKY GUI groups, vertical fade и shooting-star renderer;
    - текущие exact defaults;
    - line/band controls;
    - draggable numeric inputs;
    - Hide-all-UI controls и CSS.
-4. Критические свойства texture-driven route и наличие четырёх runtime assets.
+6. Критические свойства texture-driven route и наличие четырёх runtime assets.
 
 Тесты source-oriented, а не pixel-perfect. Они не доказывают визуальное качество и не заменяют просмотр эффекта пользователем.
 
 ## 6. Минимальный manual checklist после визуальной правки
 
 - `/aurora-codepen` загружается без static fallback.
-- Background остаётся неподвижным и совпадает с canvas cover.
-- В прозрачных промежутках видно чистое звёздное небо, нет чёрного/серого прямоугольника.
-- Сияние не проходит поверх гор при Landscape Mask=true.
+- Procedural sky заполняет весь viewport без image requests.
+- В прозрачных промежутках видны звёзды, нет чёрного/серого прямоугольника WebGL.
+- Звёзды мерцают слабо, без резких вспышек и синхронного мигания.
+- SKY / GRADIENT controls сразу меняют три цвета, midpoint, glow и haze.
+- SKY / STARS controls меняют density/brightness/size и плавные Start/Fade Y.
+- `Launch Now` запускает падающую звезду; interval, color, brightness, speed, trail, angle и thickness влияют на следующий/ручной полёт.
 - Pause/Play работает.
-- Background only, Aurora on, Show reference и Compare split работают.
+- Starfield only и Aurora on работают.
 - Numeric input принимает ручное значение.
 - Drag по числу меняет значение; Shift замедляет изменение.
-- Reset возвращает source defaults.
+- Reset возвращает одновременно Aurora и Star Sky source defaults.
+- Save settings показывает Saved и сохраняет текущие Aurora + Sky values.
+- Open clean view открывает `/aurora-clean`, где нет HUD, GUI, heading или note.
+- После нового Save уже открытая clean-view вкладка меняет оба слоя без reload.
+- GUI drag/input без Save не меняет clean view.
+- Reload обеих страниц восстанавливает последний сохранённый combined preset; Reset сам по себе его не перезаписывает.
 - Hide GUI скрывает только panel.
 - Hide all UI убирает все подписи/controls.
 - Esc, H и double-click возвращают UI.
@@ -164,7 +181,15 @@ Browser screenshots, DOM inspection и автоматические clicks вы�
 4. Reload страницы.
 5. Изменить Speed/Band Count и нажать Reset.
 
-Не добавлять persistence как «исправление» этой проблемы.
+Проверить также, не загружается ли ожидаемый сохранённый browser override. Reset показывает source defaults, но reload снова применит saved preset, пока не выполнить Reset → Save settings или не очистить ключ `aurora-motion-study:settings:v1`.
+
+### Clean view не обновился после Save
+
+1. Убедиться, что обе вкладки открыты на одном origin/порту.
+2. Проверить, что кнопка показала `Saved`, а не `Save failed`.
+3. Reload `/aurora-clean`: он должен прочитать тот же localStorage document.
+4. Если reload работает, а live sync нет, проверить поддержку/ошибки `BroadcastChannel`; `storage` event остаётся fallback между вкладками.
+5. Если browser storage запрещён, clean view использует source defaults и сохранение невозможно.
 
 ### Canvas чёрный вместо прозрачного
 
@@ -175,12 +200,12 @@ Browser screenshots, DOM inspection и автоматические clicks вы�
 - `premultipliedAlpha: false`;
 - material `transparent: true`;
 - output `vec4(auroraColor, auroraAlpha)`;
-- CSS background действительно отдельный DOM layer;
+- procedural sky действительно отдельный Canvas/CSS layer под WebGL;
 - debug mode не включён.
 
 ### Зелёная грязь в тёмных областях
 
-Проверить `transparentLuminance`, alpha thresholds, dithering и sky mask. Не лечить это добавлением чёрного RGB/alpha фона.
+Проверить `transparentLuminance`, alpha thresholds и dithering. Не лечить это добавлением чёрного RGB/alpha фона.
 
 ### Линии снова стали туманом
 
@@ -194,19 +219,22 @@ Browser screenshots, DOM inspection и автоматические clicks вы�
 
 Сначала снизить quality или pixelRatio. Затем проверить band/field math. Не отключать mask/alpha и не упрощать визуал без сравнения.
 
-## 8. Git-состояние перед первым коммитом
+### Падающую звезду долго не видно
 
-На аудите 2026-08-25:
+Default interval — средние 14 секунд с random factor 0.65..1.35. Для настройки раскрыть `SKY / SHOOTING STAR` и нажать `Launch Now`. Проверить, что Enabled=true, Pause выключен и системный reduced motion не активен.
+
+## 8. Git-состояние после baseline-коммита
+
+Пользователь создал baseline:
 
 ```text
 branch: main
-HEAD: отсутствует
-tracked files: отсутствуют
+HEAD: 7971cd9 first
 ```
 
-То есть первый commit станет полным baseline.
+Переход на procedural sky выполняется поверх этого commit. До начала правки рабочее дерево было чистым, кроме существующей untracked папки `norvix/`, не связанной с aurora app. Не включать её в следующий commit автоматически.
 
-### Что является приложением и обычно должно войти в baseline
+### Основные tracked пути приложения
 
 ```text
 .openai/hosting.json
@@ -228,13 +256,13 @@ eslint.config.mjs
 postcss.config.mjs
 ```
 
-### Что требует отдельного решения пользователя
+### Исторические локальные особенности
 
-- Корневые `01-reference.png` ... `04-sky-mask.png`: byte-identical копии `public/hero/`. Runtime использует только `public/hero/`. Корневые файлы могут быть source backup, поэтому агент не должен удалять их сам.
-- `output/`: содержит сторонние imagegen results, не импортируется aurora app. Текущий `.gitignore` игнорирует `/outputs/`, но **не** `/output/`.
+- Корневые `01-reference.png` ... `04-sky-mask.png`: byte-identical копии `public/hero/`. Активный `/aurora-codepen` больше не использует их; старый маршрут использует `public/hero/`. Не удалять без отдельной просьбы.
+- `output/`: содержит сторонние imagegen results и не импортируется aurora app.
 - `norvix/`: содержит вложенную `.git` metadata и не является частью import graph приложения.
 
-Из-за этого перед первым коммитом безопаснее stage-ить явно выбранные пути, а не выполнять `git add -A`. Не удалять и не перемещать спорные файлы ради чистого status без согласия пользователя.
+Перед следующим коммитом проверять status и не stage-ить `norvix/`. Не удалять и не перемещать спорные файлы ради чистого status без согласия пользователя.
 
 ### Не коммитить build/cache
 
@@ -266,8 +294,8 @@ dist/
 Правка считается завершённой, когда:
 
 1. Выполнено точное визуальное/функциональное требование пользователя.
-2. Не нарушены background transparency, landscape mask и выбранный default preset без разрешения.
+2. Не нарушены procedural starfield/sky controls, transparent aurora compositing и оба default-пресета без разрешения.
 3. GUI/Reset/debug controls продолжают работать.
-4. TypeScript, ESLint, production build и 4 tests проходят.
+4. TypeScript, ESLint, production build и 6 tests проходят.
 5. Изменения defaults/architecture/controls отражены в docs.
 6. Пользователю коротко сообщены результат и доступные способы управления.

@@ -1,0 +1,61 @@
+export type StarSkyConfig = {
+  skyTopColor: string;
+  skyMiddleColor: string;
+  skyBottomColor: string;
+  gradientMidpoint: number;
+  horizonGlowColor: string;
+  horizonGlowPosition: number;
+  horizonGlowSize: number;
+  horizonGlowStrength: number;
+  hazeStrength: number;
+  starPrimaryColor: string;
+  starSecondaryColor: string;
+  starColorMix: number;
+  starDensity: number;
+  starBrightness: number;
+  starSize: number;
+  starStartY: number;
+  starFadeStartY: number;
+  starFadeEndY: number;
+  twinkleAmount: number;
+  twinkleSpeed: number;
+  shootingStarEnabled: boolean;
+  shootingStarColor: string;
+  shootingStarInterval: number;
+  shootingStarBrightness: number;
+  shootingStarSpeed: number;
+  shootingStarLength: number;
+  shootingStarAngle: number;
+  shootingStarThickness: number;
+};
+
+export const DEFAULT_STAR_SKY_CONFIG: StarSkyConfig = {
+  skyTopColor: "#01040d",
+  skyMiddleColor: "#041326",
+  skyBottomColor: "#082039",
+  gradientMidpoint: 0.62,
+  horizonGlowColor: "#175278",
+  horizonGlowPosition: 1.12,
+  horizonGlowSize: 0.62,
+  horizonGlowStrength: 0.52,
+  hazeStrength: 0.72,
+  starPrimaryColor: "#dcebff",
+  starSecondaryColor: "#fff7e0",
+  starColorMix: 1,
+  starDensity: 1,
+  starBrightness: 1,
+  starSize: 1,
+  starStartY: -0.08,
+  starFadeStartY: 0.72,
+  starFadeEndY: 1.04,
+  twinkleAmount: 1,
+  twinkleSpeed: 1,
+  shootingStarEnabled: true,
+  shootingStarColor: "#e4f6ff",
+  shootingStarInterval: 14,
+  shootingStarBrightness: 0.92,
+  shootingStarSpeed: 850,
+  shootingStarLength: 150,
+  shootingStarAngle: 24,
+  shootingStarThickness: 1.25,
+};

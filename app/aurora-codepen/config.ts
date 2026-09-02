@@ -37,7 +37,6 @@ export type CodepenAuroraConfig = {
   pixelRatio: number;
   dithering: number;
   quality: AuroraQuality;
-  useSkyMask: boolean;
 };
 
 export const QUALITY_PRESETS: Record<
@@ -86,5 +85,4 @@ export const DEFAULT_CODEPEN_AURORA_CONFIG: CodepenAuroraConfig = {
   pixelRatio: 1.25,
   dithering: 0,
   quality: "high",
-  useSkyMask: true,
 };

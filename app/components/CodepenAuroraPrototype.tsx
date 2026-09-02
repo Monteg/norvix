@@ -1,5 +1,4 @@
 "use client";
-/* eslint-disable @next/next/no-img-element -- DOM image layers must share the WebGL cover transform */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import GUI, { type NumberController } from "lil-gui";
@@ -11,8 +10,15 @@ import {
   DEFAULT_CODEPEN_AURORA_CONFIG,
   type CodepenAuroraConfig,
 } from "../aurora-codepen/config";
-
-const HERO = "/hero";
+import {
+  DEFAULT_STAR_SKY_CONFIG,
+  type StarSkyConfig,
+} from "../star-sky/config";
+import {
+  loadSavedAuroraSettings,
+  saveAuroraSettings,
+} from "../settings/savedAuroraSettings";
+import { ProceduralStarSky } from "./ProceduralStarSky";
 
 type CompositeMode = "composite" | "background" | "aurora";
 type ShaderDebug = "normal" | "alpha" | "horizon" | "horizontal" | "curtains";
@@ -37,6 +43,10 @@ const INITIAL_METRICS: AuroraCodepenMetrics = {
 type NumericConfigKey = {
   [Key in keyof CodepenAuroraConfig]-?: CodepenAuroraConfig[Key] extends number ? Key : never;
 }[keyof CodepenAuroraConfig];
+
+type NumericStarSkyConfigKey = {
+  [Key in keyof StarSkyConfig]-?: StarSkyConfig[Key] extends number ? Key : never;
+}[keyof StarSkyConfig];
 
 function enableHorizontalScrubbing(controller: NumberController, unitsPerPixel: number) {
   const input = controller.$input;
@@ -101,6 +111,8 @@ export function CodepenAuroraPrototype() {
   const sceneRef = useRef<AuroraCodepenScene | null>(null);
   const guiRef = useRef<GUI | null>(null);
   const configRef = useRef<CodepenAuroraConfig>({ ...DEFAULT_CODEPEN_AURORA_CONFIG });
+  const starSkyConfigRef = useRef<StarSkyConfig>({ ...DEFAULT_STAR_SKY_CONFIG });
+  const saveTimerRef = useRef<number | null>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -108,12 +120,13 @@ export function CodepenAuroraPrototype() {
   const [metrics, setMetrics] = useState<AuroraCodepenMetrics>(INITIAL_METRICS);
   const [compositeMode, setCompositeMode] = useState<CompositeMode>("composite");
   const [shaderDebug, setShaderDebug] = useState<ShaderDebug>("normal");
-  const [showReference, setShowReference] = useState(false);
-  const [referenceOpacity, setReferenceOpacity] = useState(0.5);
-  const [compareSplit, setCompareSplit] = useState(false);
-  const [splitPosition, setSplitPosition] = useState(50);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [interfaceHidden, setInterfaceHidden] = useState(false);
+  const [starSkyConfig, setStarSkyConfig] = useState<StarSkyConfig>({
+    ...DEFAULT_STAR_SKY_CONFIG,
+  });
+  const [shootingStarTrigger, setShootingStarTrigger] = useState(0);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "failed">("idle");
 
   const updateShaderDebug = useCallback((mode: ShaderDebug) => {
     setShaderDebug(mode);
@@ -129,10 +142,23 @@ export function CodepenAuroraPrototype() {
     });
   }, []);
 
+  const saveCurrentSettings = useCallback(() => {
+    const saved = saveAuroraSettings(configRef.current, starSkyConfigRef.current);
+    setSaveStatus(saved ? "saved" : "failed");
+
+    if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+      setSaveStatus("idle");
+      saveTimerRef.current = null;
+    }, 1800);
+  }, []);
+
   const resetAll = useCallback(() => {
     const nextConfig = { ...DEFAULT_CODEPEN_AURORA_CONFIG };
     if (window.innerWidth <= 600) nextConfig.quality = "low";
     Object.assign(configRef.current, nextConfig);
+    Object.assign(starSkyConfigRef.current, DEFAULT_STAR_SKY_CONFIG);
+    setStarSkyConfig({ ...DEFAULT_STAR_SKY_CONFIG });
     sceneRef.current?.setConfig(configRef.current);
     sceneRef.current?.setDebugMode(0);
     guiRef.current?.controllersRecursive().forEach((controller) => controller.updateDisplay());
@@ -140,12 +166,24 @@ export function CodepenAuroraPrototype() {
     sceneRef.current?.setPaused(false);
     setCompositeMode("composite");
     setShaderDebug("normal");
-    setShowReference(false);
-    setReferenceOpacity(0.5);
-    setCompareSplit(false);
-    setSplitPosition(50);
     setInterfaceHidden(false);
   }, []);
+
+  useEffect(() => {
+    const saved = loadSavedAuroraSettings();
+    if (!saved) return;
+
+    Object.assign(configRef.current, saved.aurora);
+    Object.assign(starSkyConfigRef.current, saved.sky);
+    queueMicrotask(() => setStarSkyConfig({ ...saved.sky }));
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -202,9 +240,11 @@ export function CodepenAuroraPrototype() {
     const container = guiHostRef.current;
     if (!container || guiRef.current) return;
     const config = configRef.current;
+    const skyConfig = starSkyConfigRef.current;
     const gui = new GUI({ container, title: "ShaderToy aurora", width: 320 });
     guiRef.current = gui;
     const update = () => sceneRef.current?.setConfig(config);
+    const updateSky = () => setStarSkyConfig({ ...skyConfig });
     const scrubCleanups: Array<() => void> = [];
     const addNumber = (
       folder: GUI,
@@ -217,6 +257,55 @@ export function CodepenAuroraPrototype() {
       scrubCleanups.push(enableHorizontalScrubbing(controller, unitsPerPixel));
       return controller;
     };
+    const addSkyNumber = (
+      folder: GUI,
+      property: NumericStarSkyConfigKey,
+      label: string,
+      unitsPerPixel: number,
+    ) => {
+      const controller = folder.add(skyConfig, property) as NumberController;
+      controller.name(label).onChange(updateSky);
+      scrubCleanups.push(enableHorizontalScrubbing(controller, unitsPerPixel));
+      return controller;
+    };
+
+    const skyGradient = gui.addFolder("SKY / GRADIENT");
+    skyGradient.addColor(skyConfig, "skyTopColor").name("Top Color").onChange(updateSky);
+    skyGradient.addColor(skyConfig, "skyMiddleColor").name("Middle Color").onChange(updateSky);
+    skyGradient.addColor(skyConfig, "skyBottomColor").name("Bottom Color").onChange(updateSky);
+    addSkyNumber(skyGradient, "gradientMidpoint", "Gradient Midpoint", 0.001);
+    skyGradient.addColor(skyConfig, "horizonGlowColor").name("Horizon Glow Color").onChange(updateSky);
+    addSkyNumber(skyGradient, "horizonGlowPosition", "Glow Position", 0.001);
+    addSkyNumber(skyGradient, "horizonGlowSize", "Glow Size", 0.001);
+    addSkyNumber(skyGradient, "horizonGlowStrength", "Glow Strength", 0.005);
+    addSkyNumber(skyGradient, "hazeStrength", "Haze Strength", 0.005);
+
+    const skyStars = gui.addFolder("SKY / STARS");
+    skyStars.addColor(skyConfig, "starPrimaryColor").name("Primary Color").onChange(updateSky);
+    skyStars.addColor(skyConfig, "starSecondaryColor").name("Secondary Color").onChange(updateSky);
+    addSkyNumber(skyStars, "starColorMix", "Color Mix", 0.005);
+    addSkyNumber(skyStars, "starDensity", "Density", 0.01);
+    addSkyNumber(skyStars, "starBrightness", "Brightness", 0.01);
+    addSkyNumber(skyStars, "starSize", "Size", 0.01);
+    addSkyNumber(skyStars, "starStartY", "Field Start Y", 0.001);
+    addSkyNumber(skyStars, "starFadeStartY", "Fade Start Y", 0.001);
+    addSkyNumber(skyStars, "starFadeEndY", "Fade End Y", 0.001);
+    addSkyNumber(skyStars, "twinkleAmount", "Twinkle Amount", 0.01);
+    addSkyNumber(skyStars, "twinkleSpeed", "Twinkle Speed", 0.01);
+
+    const shootingStar = gui.addFolder("SKY / SHOOTING STAR");
+    shootingStar.add(skyConfig, "shootingStarEnabled").name("Enabled").onChange(updateSky);
+    shootingStar.addColor(skyConfig, "shootingStarColor").name("Color").onChange(updateSky);
+    addSkyNumber(shootingStar, "shootingStarInterval", "Interval (sec)", 0.1);
+    addSkyNumber(shootingStar, "shootingStarBrightness", "Brightness", 0.01);
+    addSkyNumber(shootingStar, "shootingStarSpeed", "Speed", 5);
+    addSkyNumber(shootingStar, "shootingStarLength", "Trail Length", 1);
+    addSkyNumber(shootingStar, "shootingStarAngle", "Angle", 0.5);
+    addSkyNumber(shootingStar, "shootingStarThickness", "Thickness", 0.01);
+    const shootingStarActions = {
+      "Launch Now": () => setShootingStarTrigger((current) => current + 1),
+    };
+    shootingStar.add(shootingStarActions, "Launch Now");
 
     const motion = gui.addFolder("AURORA / MOTION");
     addNumber(motion, "speed", "Speed", 0.01);
@@ -246,7 +335,6 @@ export function CodepenAuroraPrototype() {
     addNumber(mask, "horizonFeather", "Horizon Feather", 0.001);
     addNumber(mask, "edgeFade", "Edge Fade", 0.001);
     addNumber(mask, "centerBias", "Center Bias", 0.001);
-    mask.add(config, "useSkyMask").name("Landscape Mask").onChange(update);
 
     const curtains = gui.addFolder("AURORA / NIMITZ FIELD");
     addNumber(curtains, "noiseScale", "Curtain Scale", 0.001);
@@ -267,10 +355,8 @@ export function CodepenAuroraPrototype() {
     render.add(config, "pixelRatio", 0.5, 2, 0.05).name("Pixel Ratio").onChange(update);
     render.add(config, "dithering", 0, 0.08, 0.001).name("Dithering").onChange(update);
 
-    const debugSettings = { referenceOpacity: 0.5 };
     const debugActions = {
-      "Show Reference": () => setShowReference((current) => !current),
-      "Show Background Only": () => {
+      "Show Starfield Only": () => {
         setShaderDebug("normal");
         sceneRef.current?.setDebugMode(0);
         setCompositeMode("background");
@@ -284,14 +370,14 @@ export function CodepenAuroraPrototype() {
       "Show Horizon Mask": () => updateShaderDebug("horizon"),
       "Show Horizontal Mask": () => updateShaderDebug("horizontal"),
       "Show Aurora Field": () => updateShaderDebug("curtains"),
-      "Compare Split": () => setCompareSplit((current) => !current),
       Pause: () => togglePause(),
+      "Save Settings": () => saveCurrentSettings(),
+      "Open Clean View": () => window.open("/aurora-clean", "_blank", "noopener"),
       "Hide All UI": () => setInterfaceHidden(true),
       "Hide GUI": () => setControlsVisible(false),
       Reset: () => resetAll(),
     };
     const debugFolder = gui.addFolder("DEBUG");
-    debugFolder.add(debugSettings, "referenceOpacity", 0, 1, 0.01).name("Reference Opacity").onChange(setReferenceOpacity);
     Object.keys(debugActions).forEach((key) => {
       debugFolder.add(debugActions, key as keyof typeof debugActions);
     });
@@ -299,6 +385,8 @@ export function CodepenAuroraPrototype() {
     position.close();
     light.close();
     mask.close();
+    skyStars.close();
+    shootingStar.close();
     render.close();
     debugFolder.close();
 
@@ -307,7 +395,7 @@ export function CodepenAuroraPrototype() {
       gui.destroy();
       guiRef.current = null;
     };
-  }, [resetAll, togglePause, updateShaderDebug]);
+  }, [resetAll, saveCurrentSettings, togglePause, updateShaderDebug]);
 
   const status = failed
     ? "Static fallback"
@@ -331,71 +419,27 @@ export function CodepenAuroraPrototype() {
         data-fps={metrics.fps}
         data-resolution={`${metrics.width}x${metrics.height}`}
         data-interface-hidden={interfaceHidden}
+        data-settings-status={saveStatus}
         onDoubleClick={() => {
           if (interfaceHidden) setInterfaceHidden(false);
         }}
-        aria-label="ShaderToy-based procedural northern lights prototype"
+        aria-label="Procedural northern lights and starfield prototype"
       >
-        <img
-          className="codepen-hero-layer codepen-background"
-          src={`${HERO}/02-background-clean.png`}
-          alt="Snow-covered mountain valley beneath a clear starry sky"
+        <ProceduralStarSky
+          config={starSkyConfig}
+          paused={paused || compositeMode === "aurora"}
+          shootingStarTrigger={shootingStarTrigger}
         />
 
         <div ref={webglHostRef} className="codepen-webgl-layer" aria-hidden="true" />
 
-        {failed && (
-          <img
-            className="codepen-hero-layer codepen-static-fallback"
-            src={`${HERO}/01-reference.png`}
-            alt="Northern lights above a snow-covered mountain lake"
-          />
-        )}
-
-        {showReference && !compareSplit && (
-          <img
-            className="codepen-hero-layer codepen-reference-overlay"
-            src={`${HERO}/01-reference.png`}
-            alt=""
-            aria-hidden="true"
-            style={{ opacity: referenceOpacity }}
-          />
-        )}
-
-        {compareSplit && (
-          <>
-            <div
-              className="codepen-split-reference"
-              style={{ width: `${splitPosition}%` }}
-              aria-hidden="true"
-            >
-              <img
-                className="codepen-hero-layer"
-                src={`${HERO}/01-reference.png`}
-                alt=""
-              />
-            </div>
-            <span className="codepen-split-divider" style={{ left: `${splitPosition}%` }} />
-            <label className="codepen-split-control">
-              <span>Reference / generated split</span>
-              <input
-                type="range"
-                min="5"
-                max="95"
-                value={splitPosition}
-                onChange={(event) => setSplitPosition(Number(event.target.value))}
-              />
-            </label>
-          </>
-        )}
-
         <header className="prototype-heading codepen-heading">
-          <p className="eyebrow">Nimitz ShaderToy · transparent adaptation</p>
+          <p className="eyebrow">Nimitz ShaderToy · procedural sky adaptation</p>
           <h1>Aurora<br />volumetric study</h1>
         </header>
 
         <a className="codepen-ab-link" href="/aurora-prototype">
-          Current implementation
+          Texture prototype
         </a>
 
         <div className="codepen-performance" aria-live="polite">
@@ -420,7 +464,7 @@ export function CodepenAuroraPrototype() {
               setCompositeMode("background");
             }}
           >
-            Background only
+            Starfield only
           </button>
           <button
             type="button"
@@ -431,17 +475,26 @@ export function CodepenAuroraPrototype() {
           </button>
           <button
             type="button"
-            className={`hud-button ${showReference ? "is-active" : ""}`}
-            onClick={() => setShowReference((current) => !current)}
+            className={`hud-button ${saveStatus === "saved" ? "is-active" : ""}`}
+            onClick={saveCurrentSettings}
+            title={
+              saveStatus === "failed"
+                ? "Browser storage is unavailable"
+                : "Save and sync the aurora and sky settings"
+            }
           >
-            Show reference
+            {saveStatus === "saved"
+              ? "Saved"
+              : saveStatus === "failed"
+                ? "Save failed"
+                : "Save settings"}
           </button>
           <button
             type="button"
-            className={`hud-button ${compareSplit ? "is-active" : ""}`}
-            onClick={() => setCompareSplit((current) => !current)}
+            className="hud-button"
+            onClick={() => window.open("/aurora-clean", "_blank", "noopener")}
           >
-            Compare split
+            Open clean view
           </button>
           <button
             type="button"
@@ -463,7 +516,7 @@ export function CodepenAuroraPrototype() {
         />
 
         <p className="codepen-prototype-note">
-          Transparent WebGL · Nimitz aurora field · project sky preserved
+          Procedural starfield · transparent Nimitz aurora · no image layers
         </p>
       </section>
     </main>

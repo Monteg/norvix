@@ -25,7 +25,6 @@ type AuroraCodepenCallbacks = {
   onReducedMotion: (reduced: boolean) => void;
 };
 
-const HERO = "/hero";
 const IMAGE_ASPECT = 1;
 
 export class AuroraCodepenScene {
@@ -39,7 +38,6 @@ export class AuroraCodepenScene {
   private readonly geometry = new THREE.PlaneGeometry(2, 2);
   private material?: THREE.ShaderMaterial;
   private mesh?: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
-  private skyMask?: THREE.Texture;
   private resizeObserver?: ResizeObserver;
   private intersectionObserver?: IntersectionObserver;
   private motionQuery: MediaQueryList;
@@ -82,12 +80,6 @@ export class AuroraCodepenScene {
 
   async init() {
     try {
-      this.skyMask = await this.loadSkyMask();
-      if (this.isDisposed) {
-        this.skyMask.dispose();
-        return;
-      }
-
       this.createMaterial();
       this.attachObservers();
       this.resize();
@@ -109,7 +101,7 @@ export class AuroraCodepenScene {
     const qualityChanged = nextConfig.quality !== this.config.quality;
     Object.assign(this.config, nextConfig);
 
-    if (qualityChanged && this.skyMask) {
+    if (qualityChanged) {
       this.createMaterial();
       this.resize();
     } else {
@@ -141,35 +133,11 @@ export class AuroraCodepenScene {
     this.renderer.domElement.removeEventListener("webglcontextlost", this.handleContextLost);
     this.material?.dispose();
     this.geometry.dispose();
-    this.skyMask?.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
 
-  private async loadSkyMask() {
-    try {
-      const texture = await new THREE.TextureLoader().loadAsync(`${HERO}/04-sky-mask.png`);
-      texture.colorSpace = THREE.NoColorSpace;
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-      texture.wrapS = THREE.ClampToEdgeWrapping;
-      texture.wrapT = THREE.ClampToEdgeWrapping;
-      texture.generateMipmaps = false;
-      return texture;
-    } catch {
-      const texture = new THREE.DataTexture(
-        new Uint8Array([255, 255, 255, 255]),
-        1,
-        1,
-        THREE.RGBAFormat,
-      );
-      texture.needsUpdate = true;
-      return texture;
-    }
-  }
-
   private createMaterial() {
-    if (!this.skyMask) return;
     const oldMaterial = this.material;
     const preset = QUALITY_PRESETS[this.config.quality];
 
@@ -214,8 +182,6 @@ export class AuroraCodepenScene {
         uCurtainHeight: { value: this.config.curtainHeight },
         uDepthSpread: { value: this.config.depthSpread },
         uLowerGlow: { value: this.config.lowerGlow },
-        uUseSkyMask: { value: this.config.useSkyMask ? 1 : 0 },
-        uSkyMask: { value: this.skyMask },
         uDebugMode: { value: this.debugMode },
       },
       vertexShader: codepenAuroraVertexShader,
@@ -273,7 +239,6 @@ export class AuroraCodepenScene {
     uniforms.uCurtainHeight.value = this.config.curtainHeight;
     uniforms.uDepthSpread.value = this.config.depthSpread;
     uniforms.uLowerGlow.value = this.config.lowerGlow;
-    uniforms.uUseSkyMask.value = this.config.useSkyMask ? 1 : 0;
   }
 
   private attachObservers() {

@@ -46,18 +46,56 @@ test("server-renders the neighboring ShaderToy aurora experiment", async () => {
   const html = await response.text();
   assert.match(html, /<title>Nimitz Aurora Study<\/title>/i);
   assert.match(html, /Aurora[\s\S]*volumetric study/i);
-  assert.match(html, /\/hero\/02-background-clean\.png/);
-  assert.match(html, /Background only/);
-  assert.match(html, /Compare split/);
+  assert.match(html, /Procedural starfield/i);
+  assert.match(html, /Starfield only/);
   assert.match(html, /Hide all UI/);
+  assert.doesNotMatch(html, /\/hero\/|Show reference|Compare split/i);
 });
 
-test("keeps the Nimitz aurora transparent, masked, and independently licensed", async () => {
-  const [scene, shaders, config, component, license, styles] = await Promise.all([
+test("server-renders the clean synchronized aurora view without interface", async () => {
+  const response = await renderRoute("/aurora-clean");
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+
+  const html = await response.text();
+  assert.match(html, /<title>Aurora Clean View<\/title>/i);
+  assert.match(html, /clean-aurora-view/);
+  assert.match(html, /codepen-procedural-sky/);
+  assert.match(html, /codepen-webgl-layer/);
+  assert.doesNotMatch(html, /<header|<nav|<button|<aside|\/hero\//i);
+});
+
+test("persists and broadcasts aurora and sky settings to the clean view", async () => {
+  const [configurator, cleanView, savedSettings] = await Promise.all([
+    readFile(new URL("../app/components/CodepenAuroraPrototype.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/CleanAuroraView.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/settings/savedAuroraSettings.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(configurator, /saveCurrentSettings/);
+  assert.match(configurator, /Save settings/);
+  assert.match(configurator, /Open clean view/);
+  assert.match(configurator, /loadSavedAuroraSettings/);
+  assert.match(cleanView, /loadSavedAuroraSettings/);
+  assert.match(cleanView, /subscribeToAuroraSettings/);
+  assert.match(cleanView, /scene\?\.setConfig\(settings\.aurora\)/);
+  assert.doesNotMatch(cleanView, /<header|<nav|<button|<aside/);
+  assert.match(savedSettings, /aurora-motion-study:settings:v1/);
+  assert.match(savedSettings, /version:\s*1/);
+  assert.match(savedSettings, /window\.localStorage\.setItem/);
+  assert.match(savedSettings, /new BroadcastChannel/);
+  assert.match(savedSettings, /window\.addEventListener\("storage"/);
+  assert.match(savedSettings, /AURORA_SETTINGS_EVENT/);
+});
+
+test("keeps the Nimitz aurora transparent over a procedural starfield", async () => {
+  const [scene, shaders, config, component, starSky, starConfig, license, styles] = await Promise.all([
     readFile(new URL("../app/aurora-codepen/AuroraCodepenScene.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/aurora-codepen/shaders.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/aurora-codepen/config.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/components/CodepenAuroraPrototype.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/ProceduralStarSky.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/star-sky/config.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/aurora-codepen/LICENSE.md", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
@@ -67,10 +105,12 @@ test("keeps the Nimitz aurora transparent, masked, and independently licensed", 
   assert.match(scene, /THREE\.NormalBlending/);
   assert.match(scene, /IntersectionObserver/);
   assert.match(scene, /prefers-reduced-motion/);
+  assert.doesNotMatch(scene, /TextureLoader|DataTexture|skyMask|\/hero\//);
   assert.match(shaders, /renderNimitzAurora/);
   assert.match(shaders, /triangularCurtainNoise/);
   assert.match(shaders, /NIMITZ_ROTATION/);
   assert.doesNotMatch(shaders, /renderStarfield|paintBackdrop|uSkyDark|uSkyDeep/);
+  assert.doesNotMatch(shaders, /uSkyMask|sampler2D|texture2D/);
   assert.match(shaders, /vec4\(auroraColor, auroraAlpha\)/);
   assert.match(config, /quality:\s*"high"/);
   assert.match(config, /speed:\s*2\.16/);
@@ -84,6 +124,7 @@ test("keeps the Nimitz aurora transparent, masked, and independently licensed", 
   assert.match(config, /bandSharpness:\s*1\.06/);
   assert.match(config, /layerCount:\s*184/);
   assert.match(config, /depthSpread:\s*0\.0019/);
+  assert.doesNotMatch(config, /useSkyMask/);
   assert.match(shaders, /transparentLuminance/);
   assert.match(shaders, /uLineSharpness/);
   assert.match(shaders, /pow\(normalizedCurtain, max\(uLineSharpness, 0\.05\)\)/);
@@ -110,9 +151,22 @@ test("keeps the Nimitz aurora transparent, masked, and independently licensed", 
   assert.match(component, /addNumber\(curtains, "lineSharpness", "Line Sharpness", 0\.01\)/);
   assert.match(component, /addNumber\(curtains, "bandCount", "Band Count", 0\.05\)/);
   assert.match(component, /render\.add\(config, "pixelRatio", 0\.5, 2, 0\.05\)/);
-  assert.match(component, /Show Reference/);
   assert.match(component, /Show Aurora Field/);
-  assert.match(component, /Show Background Only/);
+  assert.match(component, /Show Starfield Only/);
+  assert.match(component, /ProceduralStarSky/);
+  assert.match(component, /Procedural starfield/);
+  assert.match(component, /SKY \/ GRADIENT/);
+  assert.match(component, /SKY \/ STARS/);
+  assert.match(component, /SKY \/ SHOOTING STAR/);
+  assert.match(component, /Gradient Midpoint/);
+  assert.match(component, /Field Start Y/);
+  assert.match(component, /Fade Start Y/);
+  assert.match(component, /Fade End Y/);
+  assert.match(component, /Twinkle Amount/);
+  assert.match(component, /Interval \(sec\)/);
+  assert.match(component, /Launch Now/);
+  assert.match(component, /folder\.add\(skyConfig, property\)/);
+  assert.doesNotMatch(component, /<img|\/hero\/|Show Reference|Compare Split/);
   assert.match(component, /Hide All UI/);
   assert.match(component, /Hide all UI/);
   assert.match(component, /event\.key === "Escape"/);
@@ -121,6 +175,26 @@ test("keeps the Nimitz aurora transparent, masked, and independently licensed", 
   assert.match(component, /data-interface-hidden/);
   assert.match(styles, /\.is-interface-hidden/);
   assert.match(styles, /\.codepen-gui-host/);
+  assert.match(styles, /\.codepen-procedural-sky/);
+  assert.match(styles, /linear-gradient\(180deg, #01040d/);
+  assert.match(starSky, /mulberry32/);
+  assert.match(starSky, /requestAnimationFrame/);
+  assert.match(starSky, /twinkleDepth/);
+  assert.match(starSky, /prefers-reduced-motion/);
+  assert.match(starSky, /IntersectionObserver/);
+  assert.match(starSky, /createSkyBackground/);
+  assert.match(starSky, /starBrightness/);
+  assert.match(starSky, /starStartY/);
+  assert.match(starSky, /starFadeStartY/);
+  assert.match(starSky, /shootingStarInterval/);
+  assert.match(starSky, /createLinearGradient/);
+  assert.match(starSky, /SHOOTING_FRAME_INTERVAL/);
+  assert.match(starConfig, /DEFAULT_STAR_SKY_CONFIG/);
+  assert.match(starConfig, /skyTopColor:\s*"#01040d"/);
+  assert.match(starConfig, /starBrightness:\s*1/);
+  assert.match(starConfig, /starFadeStartY:\s*0\.72/);
+  assert.match(starConfig, /shootingStarEnabled:\s*true/);
+  assert.match(starConfig, /shootingStarInterval:\s*14/);
   assert.match(license, /Attribution-NonCommercial-ShareAlike 3\.0/);
   assert.match(license, /Nimitz/);
 });

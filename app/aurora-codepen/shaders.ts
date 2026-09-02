@@ -5,7 +5,7 @@
  * License: Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported.
  *
  * The original sky, stars, reflection pass and mouse camera were removed so the
- * aurora can be composited over the project's existing landscape photograph.
+ * aurora can be composited over the project's independent procedural starfield.
  */
 
 export const codepenAuroraVertexShader = /* glsl */ `
@@ -58,8 +58,6 @@ export const codepenAuroraFragmentShader = /* glsl */ `
   uniform float uCurtainHeight;
   uniform float uDepthSpread;
   uniform float uLowerGlow;
-  uniform float uUseSkyMask;
-  uniform sampler2D uSkyMask;
   uniform float uDebugMode;
 
   varying vec2 vUv;
@@ -228,8 +226,7 @@ export const codepenAuroraFragmentShader = /* glsl */ `
       topEdge + max(uEdgeFade, 0.001),
       artUv.y
     );
-    float skyMask = mix(1.0, texture2D(uSkyMask, clamp(artUv, 0.0, 1.0)).r, uUseSkyMask);
-    float compositionMask = insideArtwork * horizontalMask * horizonMask * heightMask * skyMask;
+    float compositionMask = insideArtwork * horizontalMask * horizonMask * heightMask;
 
     float luminance = dot(auroraColor, vec3(0.2126, 0.7152, 0.0722));
     float sourceAlpha = max(auroraField.a, luminance);
@@ -253,7 +250,7 @@ export const codepenAuroraFragmentShader = /* glsl */ `
       return;
     }
     if (uDebugMode > 1.5 && uDebugMode < 2.5) {
-      gl_FragColor = vec4(vec3(horizonMask * skyMask), 1.0);
+      gl_FragColor = vec4(vec3(horizonMask), 1.0);
       return;
     }
     if (uDebugMode > 2.5 && uDebugMode < 3.5) {

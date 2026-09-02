@@ -424,7 +424,8 @@ body.is-scrubbing-aurora-number * {
   background: #01050a;
 }
 
-.codepen-hero-layer,
+.codepen-procedural-sky,
+.codepen-star-canvas,
 .codepen-webgl-layer,
 .codepen-aurora-canvas {
   position: absolute;
@@ -433,15 +434,44 @@ body.is-scrubbing-aurora-number * {
   height: 100%;
 }
 
-.codepen-hero-layer {
-  display: block;
-  object-fit: cover;
-  object-position: 50% 50%;
+.codepen-procedural-sky {
+  z-index: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 112%, rgba(23, 82, 120, 0.52) 0%, rgba(9, 39, 67, 0.22) 34%, transparent 62%),
+    radial-gradient(ellipse at 73% 32%, rgba(20, 54, 82, 0.18) 0%, transparent 38%),
+    radial-gradient(ellipse at 22% 22%, rgba(13, 36, 64, 0.24) 0%, transparent 42%),
+    linear-gradient(180deg, #01040d 0%, #020a17 34%, #041326 65%, #082039 100%);
+  transition: opacity 180ms ease;
+  pointer-events: none;
 }
 
-.codepen-background {
-  z-index: 0;
-  transition: opacity 180ms ease;
+.codepen-procedural-sky::before,
+.codepen-procedural-sky::after {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  pointer-events: none;
+}
+
+.codepen-procedural-sky::before {
+  background:
+    radial-gradient(ellipse at 52% 30%, rgba(71, 111, 143, 0.08) 0%, transparent 36%),
+    radial-gradient(ellipse at 18% 48%, rgba(42, 89, 126, 0.07) 0%, transparent 32%),
+    radial-gradient(ellipse at 82% 56%, rgba(34, 78, 114, 0.065) 0%, transparent 34%);
+  filter: blur(30px);
+  opacity: var(--sky-haze-opacity, 0.72);
+}
+
+.codepen-procedural-sky::after {
+  background: linear-gradient(112deg, transparent 12%, rgba(88, 126, 156, 0.035) 43%, transparent 72%);
+  opacity: var(--sky-haze-opacity, 0.72);
+  transform: rotate(-7deg) scale(1.08);
+}
+
+.codepen-star-canvas {
+  z-index: 1;
+  display: block;
 }
 
 .codepen-webgl-layer {
@@ -460,7 +490,7 @@ body.is-scrubbing-aurora-number * {
 }
 
 .codepen-aurora-hero.is-background .codepen-webgl-layer,
-.codepen-aurora-hero.is-aurora .codepen-background {
+.codepen-aurora-hero.is-aurora .codepen-procedural-sky {
   opacity: 0;
 }
 
@@ -473,79 +503,6 @@ body.is-scrubbing-aurora-number * {
     linear-gradient(-45deg, transparent 75%, #91979c 75%);
   background-position: 0 0, 0 16px, 16px -16px, -16px 0;
   background-size: 32px 32px;
-}
-
-.codepen-static-fallback,
-.codepen-reference-overlay {
-  z-index: 3;
-  pointer-events: none;
-}
-
-.codepen-split-reference {
-  position: absolute;
-  z-index: 4;
-  inset: 0 auto 0 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.codepen-split-reference .codepen-hero-layer {
-  width: 100vw;
-  max-width: none;
-}
-
-.codepen-split-divider {
-  position: absolute;
-  z-index: 5;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: rgba(229, 255, 249, 0.82);
-  box-shadow: 0 0 18px rgba(99, 255, 214, 0.58);
-  pointer-events: none;
-}
-
-.codepen-split-divider::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 12px;
-  height: 42px;
-  border: 1px solid rgba(229, 255, 249, 0.72);
-  border-radius: 999px;
-  background: rgba(2, 17, 26, 0.72);
-  transform: translate(-50%, -50%);
-}
-
-.codepen-split-control {
-  position: absolute;
-  z-index: 7;
-  right: 50%;
-  bottom: 92px;
-  width: min(420px, calc(100vw - 40px));
-  padding: 9px 13px 11px;
-  border: 1px solid var(--glass-border);
-  border-radius: 13px;
-  background: var(--glass-strong);
-  color: rgba(237, 250, 255, 0.64);
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  transform: translateX(50%);
-  backdrop-filter: blur(16px);
-}
-
-.codepen-split-control span {
-  display: block;
-  margin-bottom: 7px;
-  text-align: center;
-}
-
-.codepen-split-control input {
-  width: 100%;
-  accent-color: #7dffdd;
 }
 
 .codepen-heading {
@@ -640,9 +597,7 @@ body.is-scrubbing-aurora-number * {
 .codepen-ab-link,
 .codepen-performance,
 .codepen-toolbar,
-.codepen-prototype-note,
-.codepen-split-divider,
-.codepen-split-control {
+.codepen-prototype-note {
   transition:
     opacity 180ms ease,
     visibility 180ms ease;
@@ -653,9 +608,7 @@ body.is-scrubbing-aurora-number * {
 .codepen-aurora-hero.is-interface-hidden .codepen-performance,
 .codepen-aurora-hero.is-interface-hidden .codepen-toolbar,
 .codepen-aurora-hero.is-interface-hidden .codepen-gui-host,
-.codepen-aurora-hero.is-interface-hidden .codepen-prototype-note,
-.codepen-aurora-hero.is-interface-hidden .codepen-split-divider,
-.codepen-aurora-hero.is-interface-hidden .codepen-split-control {
+.codepen-aurora-hero.is-interface-hidden .codepen-prototype-note {
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
@@ -711,17 +664,11 @@ body.is-scrubbing-aurora-number * {
     padding-inline: 9px;
     font-size: 7px;
   }
-
-  .codepen-split-control {
-    bottom: 66px;
-  }
 }
 
 @media (max-width: 430px) {
   .codepen-heading h1,
-  .codepen-ab-link,
-  .codepen-toolbar .hud-button:nth-child(4),
-  .codepen-toolbar .hud-button:nth-child(5) {
+  .codepen-ab-link {
     display: none;
   }
 

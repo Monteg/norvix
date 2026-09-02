@@ -2,10 +2,11 @@
 
 ## 1. Source of truth
 
-Тип и исходный пресет находятся в:
+Типы и исходные пресеты находятся в:
 
 ```text
 app/aurora-codepen/config.ts
+app/star-sky/config.ts
 ```
 
 Runtime flow:
@@ -17,9 +18,22 @@ DEFAULT_CODEPEN_AURORA_CONFIG
   → AuroraCodepenScene.setConfig()
   → ShaderMaterial uniforms
   → fragment shader
+
+DEFAULT_STAR_SKY_CONFIG
+  → starSkyConfigRef мутируется lil-gui
+  → React copy starSkyConfig
+  → ProceduralStarSky configRef
+  → CSS background + Canvas 2D draw
+
+оба runtime config refs
+  → явный Save settings
+  → versioned localStorage document
+  → /aurora-clean (initial load + inter-tab subscription)
 ```
 
-Нет localStorage, cookies, server persistence или Save Settings. Reload создаёт новую копию source default. `Reset` также создаёт новую копию source default; на viewport ≤600 px дополнительно меняет quality на low.
+Source defaults остаются канонической fallback-конфигурацией. Если существует сохранённый browser override, `/aurora-codepen` загружает его при mount, а `/aurora-clean` использует его при mount и при последующих явных сохранениях. Cookies и server persistence отсутствуют.
+
+`Reset` восстанавливает source defaults в текущем конфигураторе; на viewport ≤600 px дополнительно меняет aurora quality на low. Reset не удаляет и не перезаписывает сохранённый override.
 
 ## 2. Почему в GUI нет min/max
 
@@ -27,6 +41,7 @@ DEFAULT_CODEPEN_AURORA_CONFIG
 
 ```ts
 folder.add(config, property)
+folder.add(skyConfig, property)
 ```
 
 Это намеренное решение пользователя: можно вводить числа вне обычных диапазонов и экспериментировать. Внутренний drag по числу также не ограничивает значение. Но GLSL в некоторых местах всё равно применяет `max`, `abs` или `clamp`; реальные ограничения перечислены ниже.
@@ -38,6 +53,57 @@ folder.add(config, property)
 - Quality: low/medium/high.
 
 ## 3. Полная таблица параметров
+
+### SKY / GRADIENT
+
+| Поле | GUI | Default | Влияние и safety clamp |
+| --- | --- | ---: | --- |
+| `skyTopColor` | Top Color | `#01040d` | Цвет верхней точки linear gradient. |
+| `skyMiddleColor` | Middle Color | `#041326` | Промежуточный цвет gradient. |
+| `skyBottomColor` | Bottom Color | `#082039` | Цвет нижней точки gradient. |
+| `gradientMidpoint` | Gradient Midpoint | `0.62` | Позиция middle color; Canvas style clamp 0.01..0.99. |
+| `horizonGlowColor` | Horizon Glow Color | `#175278` | Цвет отдельного radial glow поверх linear gradient. |
+| `horizonGlowPosition` | Glow Position | `1.12` | Вертикальный центр radial glow в долях высоты; clamp -1..2. Значение >1 помещает центр ниже viewport и создаёт мягкий подъём света снизу. |
+| `horizonGlowSize` | Glow Size | `0.62` | Размер radial ellipse; берётся absolute value и clamp 0.02..2. |
+| `horizonGlowStrength` | Glow Strength | `0.52` | Alpha glow; clamp 0..2, а итоговый CSS alpha ограничивается 1. |
+| `hazeStrength` | Haze Strength | `0.72` | Opacity слабых pseudo-element haze gradients; runtime clamp 0..2, CSS opacity визуально насыщается на 1. |
+
+Scrub speed: midpoint/position/size `0.001`/px; strength/haze `0.005`/px.
+
+### SKY / STARS
+
+| Поле | GUI | Default | Влияние и safety clamp |
+| --- | --- | ---: | --- |
+| `starPrimaryColor` | Primary Color | `#dcebff` | Основной холодный цвет звёзд. |
+| `starSecondaryColor` | Secondary Color | `#fff7e0` | Второй, более тёплый цвет. |
+| `starColorMix` | Color Mix | `1` | Максимальная доля secondary color для индивидуального случайного tone; итоговый mix clamp 0..1. |
+| `starDensity` | Density | `1` | Множитель базового количества; runtime clamp 0..3. Поле заранее содержит до 1800 samples, поэтому density меняется без regeneration. |
+| `starBrightness` | Brightness | `1` | Множитель alpha всех звёзд; clamp 0..4, итоговый alpha clamp 0..1. |
+| `starSize` | Size | `1` | Множитель radius; берётся absolute value и clamp 0.05..8. |
+| `starStartY` | Field Start Y | `-0.08` | Нормализованная Y-точка появления поля. Звёзды плавно reveal на участке `startY..startY+0.08`. Отрицательный default полностью открывает верхний край. |
+| `starFadeStartY` | Fade Start Y | `0.72` | Y, с которой начинается нижнее исчезновение звёзд. |
+| `starFadeEndY` | Fade End Y | `1.04` | Y полной прозрачности звёзд. Порядок start/end нормализуется с минимумом 0.0001. Значение >1 сохраняет слабые звёзды у нижнего края. |
+| `twinkleAmount` | Twinkle Amount | `1` | Множитель индивидуальной амплитуды мерцания; clamp 0..4. 0 делает звёзды статичными. |
+| `twinkleSpeed` | Twinkle Speed | `1` | Общий множитель индивидуальных скоростей; absolute value, clamp 0..8. 0 фиксирует текущие phases. |
+
+Scrub speed: colors — color picker; Y controls `0.001`/px; Color Mix `0.005`/px; остальные `0.01`/px.
+
+### SKY / SHOOTING STAR
+
+| Поле | GUI | Default | Влияние и safety clamp |
+| --- | --- | ---: | --- |
+| `shootingStarEnabled` | Enabled | `true` | Включает автоматические и ручные запуски. При Pause/reduced motion meteor не рисуется. |
+| `shootingStarColor` | Color | `#e4f6ff` | Цвет trail, glow и head. |
+| `shootingStarInterval` | Interval (sec) | `14` | Средняя пауза между полётами; absolute value clamp 0.5..180 s, затем умножается на random 0.65..1.35. |
+| `shootingStarBrightness` | Brightness | `0.92` | Alpha multiplier trail/head; clamp 0..4. |
+| `shootingStarSpeed` | Speed | `850` | Скорость head в CSS px/s; absolute value clamp 40..4000. |
+| `shootingStarLength` | Trail Length | `150` | Длина хвоста в CSS px; absolute value clamp 4..1200. |
+| `shootingStarAngle` | Angle | `24` | Угол в градусах, без clamp; 0 летит вправо, положительные значения — вниз. |
+| `shootingStarThickness` | Thickness | `1.25` | Толщина линии в CSS px; absolute value clamp 0.2..16. |
+
+Кнопка `Launch Now` не является config value: она увеличивает React trigger counter и ставит meteor на ближайший animation frame. Это позволяет настраивать trail без ожидания interval.
+
+Scrub speed: Interval `0.1`/px; Brightness/Thickness `0.01`/px; Speed `5`/px; Length `1`/px; Angle `0.5`/px.
 
 ### AURORA / MOTION
 
@@ -85,8 +151,6 @@ Scrub speed: Intensity `0.01`/px; остальные numeric Light controls `0.0
 | `horizonFeather` | Horizon Feather | `-0.15` | `uHorizonFeather` | В smoothstep используется `max(value, 0.001)`. Текущий отрицательный default фактически даёт почти жёсткий feather 0.001. |
 | `edgeFade` | Edge Fade | `20.131` | `uEdgeFade` | Общий feather для боковой и верхней масок, с минимумом 0.001. Текущий огромный относительно UV default делает края очень мягкими/почти полностью открытыми. |
 | `centerBias` | Center Bias | `0.283` | `uCenterBias` | Управляет exponent horizontal mask через `mix(1, 3, value)`. Не clamp-ится, поэтому вне 0..1 exponent экстраполируется. |
-| `useSkyMask` | Landscape Mask | `true` | `uUseSkyMask` | Смешивает белую маску с bitmap `04-sky-mask.png`. `true` защищает горы/воду. |
-
 Scrub speed: `0.001`/px.
 
 ### AURORA / NIMITZ FIELD
@@ -165,7 +229,7 @@ effectiveLayers = clamp(layerCount, 1, MAX_AURORA_LAYERS)
 - `alphaLow/alphaHigh` определяют threshold source field.
 - Дополнительный luminance gate `smoothstep(0.004, 0.05, luminance)` всегда удаляет почти чёрные samples.
 - `opacity` — global multiplier после threshold.
-- `compositionMask` и sky bitmap полностью участвуют в alpha.
+- `compositionMask` из inside/horizontal/horizon/height masks полностью участвует в alpha; bitmap textures отсутствуют.
 - `dithering` не должен создавать alpha сам по себе.
 
 ### Положение и перспектива
@@ -183,19 +247,33 @@ effectiveLayers = clamp(layerCount, 1, MAX_AURORA_LAYERS)
 - `bandSharpness` — ширина профиля каждой полосы.
 - `bandStrength` — насколько сильно profile затемняет/усиливает curtains.
 
-## 6. Как сохранить новый default по просьбе пользователя
+## 6. Saved preset и source default — разные уровни
 
-Сейчас кнопки Save Settings нет. Если пользователь говорит «сохрани текущие настройки по умолчанию»:
+Кнопка `Save settings` сохраняет текущие Aurora + Sky values как пользовательский browser override. Это основной способ передать вид на `/aurora-clean`:
+
+1. Настроить оба слоя в `/aurora-codepen`.
+2. Нажать `Save settings`; краткий label меняется на `Saved` либо `Save failed`.
+3. Нажать `Open clean view` или перейти на `/aurora-clean`.
+4. Если clean view уже открыт, следующее сохранение применяется там автоматически без reload.
+
+Детали хранения:
+
+- key: `aurora-motion-study:settings:v1`;
+- schema version: `1`;
+- содержимое: `savedAt`, полный `CodepenAuroraConfig`, полный `StarSkyConfig`;
+- доставка: `BroadcastChannel`, `storage` event и same-page custom event;
+- scope: текущий browser origin/profile/device;
+- auto-save отсутствует: GUI drag/input сам по себе не меняет сохранённый документ.
+
+Если пользователь просит изменить именно source default для чистого checkout/browser:
 
 1. Зафиксировать точные текущие числа из GUI; не угадывать по изображению.
-2. Изменить только `DEFAULT_CODEPEN_AURORA_CONFIG`.
-3. Обновить exact-value assertions в `tests/rendered-html.test.mjs`.
-4. Обновить таблицу default в этом файле и краткий список в `docs/HANDOFF.md`.
-5. Полностью перезапустить dev server.
-6. Изменить одно заметное значение в GUI, нажать Reset и проверить, что вернулся новый source default.
-7. Перезагрузить страницу и проверить тот же preset.
+2. Изменить `DEFAULT_CODEPEN_AURORA_CONFIG`, `DEFAULT_STAR_SKY_CONFIG` или оба.
+3. Обновить exact-value assertions в тестах и таблицы в документации.
+4. Полностью перезапустить dev server.
+5. Очистить старый saved override либо нажать Reset → Save settings, иначе при reload browser override ожидаемо перекроет новый source default.
 
-Не добавлять localStorage или auto-save, если пользователь отдельно не вернул это требование.
+Чтобы сделать source defaults текущим сохранённым output без удаления storage: нажать `Reset`, затем `Save settings`.
 
 ## 7. Reset state помимо чисел
 
@@ -205,11 +283,11 @@ effectiveLayers = clamp(layerCount, 1, MAX_AURORA_LAYERS)
 paused           false
 shader debug     normal / 0
 composite mode   composite
-reference        hidden
-reference alpha  0.5
-compare split    off
-split position   50
 interfaceHidden  false
 ```
 
+До обновления GUI display функция присваивает `DEFAULT_STAR_SKY_CONFIG` в mutable sky object и публикует новую React copy, поэтому Canvas и CSS gradient возвращаются одновременно.
+
 `controlsVisible` сейчас не сбрасывается. Если GUI был скрыт через Hide GUI, его можно вернуть кнопкой Tune.
+
+Reset не вызывает `saveAuroraSettings()`. Уже открытый `/aurora-clean` поэтому остаётся на последнем сохранённом виде до следующего Save.
