@@ -19,7 +19,11 @@ npm run dev
 
 Открыть `http://localhost:3000/aurora-codepen`.
 
-Настроить сияние и небо, нажать `Save settings`, затем открыть `Open clean view`. Уже открытая чистая вкладка получает последующие сохранения автоматически. Изменения в GUI не передаются до нового нажатия `Save settings`.
+Настроить сияние и небо, нажать `Save to Default`, затем открыть `Open clean view`. Уже открытая чистая вкладка получает последующие сохранения автоматически. Изменения в GUI не передаются до нового нажатия `Save to Default`.
+
+В папке `SKY / GRADIENT` у Top/Middle/Bottom есть независимые Opacity controls. Над SKY folders находятся `Reset Settings`, `Load Settings` и `Save Settings`. В `DEBUG` доступны `Save to Default` и `Load Default Settings` для browser-default.
+
+Для библиотеки из нескольких вариантов использовать верхний `Save Settings`: каждый клик скачивает отдельный `*.aurora.json`, который можно переименовать. Верхний `Load Settings` загружает выбранный файл и сразу показывает его в редакторе. Чтобы сделать загруженный вариант browser-default и активировать его на `/aurora-clean`, нажать `Save to Default`.
 
 ## Проверка
 

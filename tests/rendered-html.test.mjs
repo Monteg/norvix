@@ -73,7 +73,28 @@ test("persists and broadcasts aurora and sky settings to the clean view", async 
   ]);
 
   assert.match(configurator, /saveCurrentSettings/);
-  assert.match(configurator, /Save settings/);
+  assert.match(configurator, /loadSavedSettings/);
+  assert.doesNotMatch(configurator, /loadDefaultSettings/);
+  assert.match(configurator, /Reset Settings/);
+  assert.match(configurator, /Load Settings/);
+  assert.match(configurator, /Save Settings/);
+  assert.match(configurator, /Save to Default/);
+  assert.match(configurator, /Load Default Settings/);
+  assert.doesNotMatch(configurator, /Load Saved Settings/);
+  assert.doesNotMatch(configurator, /Export Settings File/);
+  assert.doesNotMatch(configurator, /Import Settings File/);
+  assert.match(
+    configurator,
+    /const settingsActions = \{[\s\S]*?"Reset Settings"[\s\S]*?"Load Settings"[\s\S]*?"Save Settings"[\s\S]*?\};/,
+  );
+  assert.ok(
+    configurator.indexOf("const settingsActions") <
+      configurator.indexOf('gui.addFolder("SKY / GRADIENT")'),
+  );
+  assert.match(configurator, /new Blob/);
+  assert.match(configurator, /URL\.createObjectURL/);
+  assert.match(configurator, /file\.text\(\)/);
+  assert.match(configurator, /accept="application\/json,\.json,\.aurora\.json"/);
   assert.match(configurator, /Open clean view/);
   assert.match(configurator, /loadSavedAuroraSettings/);
   assert.match(cleanView, /loadSavedAuroraSettings/);
@@ -81,7 +102,11 @@ test("persists and broadcasts aurora and sky settings to the clean view", async 
   assert.match(cleanView, /scene\?\.setConfig\(settings\.aurora\)/);
   assert.doesNotMatch(cleanView, /<header|<nav|<button|<aside/);
   assert.match(savedSettings, /aurora-motion-study:settings:v1/);
+  assert.match(savedSettings, /aurora-motion-study-preset/);
   assert.match(savedSettings, /version:\s*1/);
+  assert.match(savedSettings, /createAuroraSettingsSnapshot/);
+  assert.match(savedSettings, /serializeAuroraSettings/);
+  assert.match(savedSettings, /parseAuroraSettingsJson/);
   assert.match(savedSettings, /window\.localStorage\.setItem/);
   assert.match(savedSettings, /new BroadcastChannel/);
   assert.match(savedSettings, /window\.addEventListener\("storage"/);
@@ -159,6 +184,9 @@ test("keeps the Nimitz aurora transparent over a procedural starfield", async ()
   assert.match(component, /SKY \/ STARS/);
   assert.match(component, /SKY \/ SHOOTING STAR/);
   assert.match(component, /Gradient Midpoint/);
+  assert.match(component, /Top Opacity/);
+  assert.match(component, /Middle Opacity/);
+  assert.match(component, /Bottom Opacity/);
   assert.match(component, /Field Start Y/);
   assert.match(component, /Fade Start Y/);
   assert.match(component, /Fade End Y/);
@@ -183,6 +211,9 @@ test("keeps the Nimitz aurora transparent over a procedural starfield", async ()
   assert.match(starSky, /prefers-reduced-motion/);
   assert.match(starSky, /IntersectionObserver/);
   assert.match(starSky, /createSkyBackground/);
+  assert.match(starSky, /rgba\(config\.skyTopColor, config\.skyTopOpacity\)/);
+  assert.match(starSky, /rgba\(config\.skyMiddleColor, config\.skyMiddleOpacity\)/);
+  assert.match(starSky, /rgba\(config\.skyBottomColor, config\.skyBottomOpacity\)/);
   assert.match(starSky, /starBrightness/);
   assert.match(starSky, /starStartY/);
   assert.match(starSky, /starFadeStartY/);
@@ -191,6 +222,9 @@ test("keeps the Nimitz aurora transparent over a procedural starfield", async ()
   assert.match(starSky, /SHOOTING_FRAME_INTERVAL/);
   assert.match(starConfig, /DEFAULT_STAR_SKY_CONFIG/);
   assert.match(starConfig, /skyTopColor:\s*"#01040d"/);
+  assert.match(starConfig, /skyTopOpacity:\s*1/);
+  assert.match(starConfig, /skyMiddleOpacity:\s*1/);
+  assert.match(starConfig, /skyBottomOpacity:\s*1/);
   assert.match(starConfig, /starBrightness:\s*1/);
   assert.match(starConfig, /starFadeStartY:\s*0\.72/);
   assert.match(starConfig, /shootingStarEnabled:\s*true/);

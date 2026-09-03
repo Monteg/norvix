@@ -1,7 +1,10 @@
 export type StarSkyConfig = {
   skyTopColor: string;
+  skyTopOpacity: number;
   skyMiddleColor: string;
+  skyMiddleOpacity: number;
   skyBottomColor: string;
+  skyBottomOpacity: number;
   gradientMidpoint: number;
   horizonGlowColor: string;
   horizonGlowPosition: number;
@@ -31,8 +34,11 @@ export type StarSkyConfig = {
 
 export const DEFAULT_STAR_SKY_CONFIG: StarSkyConfig = {
   skyTopColor: "#01040d",
+  skyTopOpacity: 1,
   skyMiddleColor: "#041326",
+  skyMiddleOpacity: 1,
   skyBottomColor: "#082039",
+  skyBottomOpacity: 1,
   gradientMidpoint: 0.62,
   horizonGlowColor: "#175278",
   horizonGlowPosition: 1.12,

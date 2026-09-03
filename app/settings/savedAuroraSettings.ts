@@ -8,10 +8,12 @@ import {
 } from "../star-sky/config";
 
 export const AURORA_SETTINGS_STORAGE_KEY = "aurora-motion-study:settings:v1";
+export const AURORA_SETTINGS_FORMAT = "aurora-motion-study-preset";
 const AURORA_SETTINGS_CHANNEL = "aurora-motion-study-settings";
 const AURORA_SETTINGS_EVENT = "aurora-motion-study:settings-saved";
 
 export type SavedAuroraSettings = {
+  format: typeof AURORA_SETTINGS_FORMAT;
   version: 1;
   savedAt: number;
   aurora: CodepenAuroraConfig;
@@ -34,7 +36,15 @@ function mergePrimitiveConfig<T extends object>(defaults: T, candidate: unknown)
 }
 
 export function parseSavedAuroraSettings(value: unknown): SavedAuroraSettings | null {
-  if (!isRecord(value) || value.version !== 1) return null;
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    (value.format !== undefined && value.format !== AURORA_SETTINGS_FORMAT) ||
+    !isRecord(value.aurora) ||
+    !isRecord(value.sky)
+  ) {
+    return null;
+  }
 
   const aurora = mergePrimitiveConfig(DEFAULT_CODEPEN_AURORA_CONFIG, value.aurora);
   const sky = mergePrimitiveConfig(DEFAULT_STAR_SKY_CONFIG, value.sky);
@@ -43,6 +53,7 @@ export function parseSavedAuroraSettings(value: unknown): SavedAuroraSettings | 
   }
 
   return {
+    format: AURORA_SETTINGS_FORMAT,
     version: 1,
     savedAt: typeof value.savedAt === "number" ? value.savedAt : Date.now(),
     aurora,
@@ -50,21 +61,48 @@ export function parseSavedAuroraSettings(value: unknown): SavedAuroraSettings | 
   };
 }
 
-function parseSerializedSettings(serialized: string | null) {
+export function parseAuroraSettingsJson(
+  serialized: string | null,
+  options: { requireFormat?: boolean } = {},
+) {
   if (!serialized) return null;
 
   try {
-    return parseSavedAuroraSettings(JSON.parse(serialized));
+    const parsed: unknown = JSON.parse(serialized);
+    if (
+      options.requireFormat &&
+      (!isRecord(parsed) || parsed.format !== AURORA_SETTINGS_FORMAT)
+    ) {
+      return null;
+    }
+    return parseSavedAuroraSettings(parsed);
   } catch {
     return null;
   }
+}
+
+export function createAuroraSettingsSnapshot(
+  auroraConfig: CodepenAuroraConfig,
+  starSkyConfig: StarSkyConfig,
+): SavedAuroraSettings {
+  return {
+    format: AURORA_SETTINGS_FORMAT,
+    version: 1,
+    savedAt: Date.now(),
+    aurora: mergePrimitiveConfig(DEFAULT_CODEPEN_AURORA_CONFIG, auroraConfig),
+    sky: mergePrimitiveConfig(DEFAULT_STAR_SKY_CONFIG, starSkyConfig),
+  };
+}
+
+export function serializeAuroraSettings(settings: SavedAuroraSettings) {
+  return JSON.stringify(settings, null, 2);
 }
 
 export function loadSavedAuroraSettings() {
   if (typeof window === "undefined") return null;
 
   try {
-    return parseSerializedSettings(window.localStorage.getItem(AURORA_SETTINGS_STORAGE_KEY));
+    return parseAuroraSettingsJson(window.localStorage.getItem(AURORA_SETTINGS_STORAGE_KEY));
   } catch {
     return null;
   }
@@ -76,15 +114,13 @@ export function saveAuroraSettings(
 ) {
   if (typeof window === "undefined") return false;
 
-  const settings: SavedAuroraSettings = {
-    version: 1,
-    savedAt: Date.now(),
-    aurora: mergePrimitiveConfig(DEFAULT_CODEPEN_AURORA_CONFIG, auroraConfig),
-    sky: mergePrimitiveConfig(DEFAULT_STAR_SKY_CONFIG, starSkyConfig),
-  };
+  const settings = createAuroraSettingsSnapshot(auroraConfig, starSkyConfig);
 
   try {
-    window.localStorage.setItem(AURORA_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    window.localStorage.setItem(
+      AURORA_SETTINGS_STORAGE_KEY,
+      serializeAuroraSettings(settings),
+    );
   } catch {
     return false;
   }
@@ -116,7 +152,7 @@ export function subscribeToAuroraSettings(
 
   const handleStorage = (event: StorageEvent) => {
     if (event.key !== AURORA_SETTINGS_STORAGE_KEY) return;
-    const settings = parseSerializedSettings(event.newValue);
+    const settings = parseAuroraSettingsJson(event.newValue);
     if (settings) onSettings(settings);
   };
 

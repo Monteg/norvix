@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 import GUI, { type NumberController } from "lil-gui";
 import {
   AuroraCodepenScene,
@@ -15,13 +21,26 @@ import {
   type StarSkyConfig,
 } from "../star-sky/config";
 import {
+  createAuroraSettingsSnapshot,
   loadSavedAuroraSettings,
+  parseAuroraSettingsJson,
   saveAuroraSettings,
+  serializeAuroraSettings,
 } from "../settings/savedAuroraSettings";
 import { ProceduralStarSky } from "./ProceduralStarSky";
 
 type CompositeMode = "composite" | "background" | "aurora";
 type ShaderDebug = "normal" | "alpha" | "horizon" | "horizontal" | "curtains";
+type SettingsStatus =
+  | "idle"
+  | "saved"
+  | "loaded"
+  | "reset"
+  | "missing"
+  | "exported"
+  | "imported"
+  | "invalid"
+  | "failed";
 
 const DEBUG_VALUE: Record<ShaderDebug, number> = {
   normal: 0,
@@ -39,6 +58,11 @@ const INITIAL_METRICS: AuroraCodepenMetrics = {
   height: 0,
   elapsed: 0,
 };
+
+function createSettingsFilename(savedAt: number) {
+  const timestamp = new Date(savedAt).toISOString().replace(/[:.]/g, "-");
+  return `aurora-preset-${timestamp}.aurora.json`;
+}
 
 type NumericConfigKey = {
   [Key in keyof CodepenAuroraConfig]-?: CodepenAuroraConfig[Key] extends number ? Key : never;
@@ -108,6 +132,7 @@ function enableHorizontalScrubbing(controller: NumberController, unitsPerPixel: 
 export function CodepenAuroraPrototype() {
   const webglHostRef = useRef<HTMLDivElement>(null);
   const guiHostRef = useRef<HTMLDivElement>(null);
+  const presetFileInputRef = useRef<HTMLInputElement>(null);
   const sceneRef = useRef<AuroraCodepenScene | null>(null);
   const guiRef = useRef<GUI | null>(null);
   const configRef = useRef<CodepenAuroraConfig>({ ...DEFAULT_CODEPEN_AURORA_CONFIG });
@@ -126,7 +151,7 @@ export function CodepenAuroraPrototype() {
     ...DEFAULT_STAR_SKY_CONFIG,
   });
   const [shootingStarTrigger, setShootingStarTrigger] = useState(0);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "failed">("idle");
+  const [settingsStatus, setSettingsStatus] = useState<SettingsStatus>("idle");
 
   const updateShaderDebug = useCallback((mode: ShaderDebug) => {
     setShaderDebug(mode);
@@ -142,16 +167,87 @@ export function CodepenAuroraPrototype() {
     });
   }, []);
 
-  const saveCurrentSettings = useCallback(() => {
-    const saved = saveAuroraSettings(configRef.current, starSkyConfigRef.current);
-    setSaveStatus(saved ? "saved" : "failed");
-
+  const showSettingsStatus = useCallback((status: Exclude<SettingsStatus, "idle">) => {
+    setSettingsStatus(status);
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = window.setTimeout(() => {
-      setSaveStatus("idle");
+      setSettingsStatus("idle");
       saveTimerRef.current = null;
     }, 1800);
   }, []);
+
+  const applySettings = useCallback(
+    (auroraConfig: CodepenAuroraConfig, skyConfig: StarSkyConfig) => {
+      Object.assign(configRef.current, auroraConfig);
+      Object.assign(starSkyConfigRef.current, skyConfig);
+      setStarSkyConfig({ ...skyConfig });
+      sceneRef.current?.setConfig(configRef.current);
+      guiRef.current?.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    },
+    [],
+  );
+
+  const saveCurrentSettings = useCallback(() => {
+    const saved = saveAuroraSettings(configRef.current, starSkyConfigRef.current);
+    showSettingsStatus(saved ? "saved" : "failed");
+  }, [showSettingsStatus]);
+
+  const loadSavedSettings = useCallback(() => {
+    const saved = loadSavedAuroraSettings();
+    if (!saved) {
+      showSettingsStatus("missing");
+      return;
+    }
+
+    applySettings(saved.aurora, saved.sky);
+    showSettingsStatus("loaded");
+  }, [applySettings, showSettingsStatus]);
+
+  const exportSettingsFile = useCallback(() => {
+    const settings = createAuroraSettingsSnapshot(
+      configRef.current,
+      starSkyConfigRef.current,
+    );
+    const blob = new Blob([serializeAuroraSettings(settings)], {
+      type: "application/json;charset=utf-8",
+    });
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = createSettingsFilename(settings.savedAt);
+    link.hidden = true;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
+    showSettingsStatus("exported");
+  }, [showSettingsStatus]);
+
+  const openSettingsFilePicker = useCallback(() => {
+    presetFileInputRef.current?.click();
+  }, []);
+
+  const importSettingsFile = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const input = event.currentTarget;
+      const file = input.files?.[0];
+      input.value = "";
+      if (!file) return;
+
+      try {
+        if (file.size > 1_000_000) throw new Error("Preset file is too large");
+        const settings = parseAuroraSettingsJson(await file.text(), {
+          requireFormat: true,
+        });
+        if (!settings) throw new Error("Invalid preset file");
+        applySettings(settings.aurora, settings.sky);
+        showSettingsStatus("imported");
+      } catch {
+        showSettingsStatus("invalid");
+      }
+    },
+    [applySettings, showSettingsStatus],
+  );
 
   const resetAll = useCallback(() => {
     const nextConfig = { ...DEFAULT_CODEPEN_AURORA_CONFIG };
@@ -167,7 +263,8 @@ export function CodepenAuroraPrototype() {
     setCompositeMode("composite");
     setShaderDebug("normal");
     setInterfaceHidden(false);
-  }, []);
+    showSettingsStatus("reset");
+  }, [showSettingsStatus]);
 
   useEffect(() => {
     const saved = loadSavedAuroraSettings();
@@ -269,10 +366,22 @@ export function CodepenAuroraPrototype() {
       return controller;
     };
 
+    const settingsActions = {
+      "Reset Settings": () => resetAll(),
+      "Load Settings": () => openSettingsFilePicker(),
+      "Save Settings": () => exportSettingsFile(),
+    };
+    Object.keys(settingsActions).forEach((key) => {
+      gui.add(settingsActions, key as keyof typeof settingsActions);
+    });
+
     const skyGradient = gui.addFolder("SKY / GRADIENT");
     skyGradient.addColor(skyConfig, "skyTopColor").name("Top Color").onChange(updateSky);
+    addSkyNumber(skyGradient, "skyTopOpacity", "Top Opacity", 0.005);
     skyGradient.addColor(skyConfig, "skyMiddleColor").name("Middle Color").onChange(updateSky);
+    addSkyNumber(skyGradient, "skyMiddleOpacity", "Middle Opacity", 0.005);
     skyGradient.addColor(skyConfig, "skyBottomColor").name("Bottom Color").onChange(updateSky);
+    addSkyNumber(skyGradient, "skyBottomOpacity", "Bottom Opacity", 0.005);
     addSkyNumber(skyGradient, "gradientMidpoint", "Gradient Midpoint", 0.001);
     skyGradient.addColor(skyConfig, "horizonGlowColor").name("Horizon Glow Color").onChange(updateSky);
     addSkyNumber(skyGradient, "horizonGlowPosition", "Glow Position", 0.001);
@@ -371,11 +480,11 @@ export function CodepenAuroraPrototype() {
       "Show Horizontal Mask": () => updateShaderDebug("horizontal"),
       "Show Aurora Field": () => updateShaderDebug("curtains"),
       Pause: () => togglePause(),
-      "Save Settings": () => saveCurrentSettings(),
+      "Save to Default": () => saveCurrentSettings(),
+      "Load Default Settings": () => loadSavedSettings(),
       "Open Clean View": () => window.open("/aurora-clean", "_blank", "noopener"),
       "Hide All UI": () => setInterfaceHidden(true),
       "Hide GUI": () => setControlsVisible(false),
-      Reset: () => resetAll(),
     };
     const debugFolder = gui.addFolder("DEBUG");
     Object.keys(debugActions).forEach((key) => {
@@ -395,7 +504,15 @@ export function CodepenAuroraPrototype() {
       gui.destroy();
       guiRef.current = null;
     };
-  }, [resetAll, saveCurrentSettings, togglePause, updateShaderDebug]);
+  }, [
+    exportSettingsFile,
+    loadSavedSettings,
+    openSettingsFilePicker,
+    resetAll,
+    saveCurrentSettings,
+    togglePause,
+    updateShaderDebug,
+  ]);
 
   const status = failed
     ? "Static fallback"
@@ -406,6 +523,18 @@ export function CodepenAuroraPrototype() {
         : ready
           ? "Volumetric motion"
           : "Loading shader";
+
+  const settingsButtonLabel: Record<SettingsStatus, string> = {
+    idle: "Save to Default",
+    saved: "Default saved",
+    loaded: "Default loaded",
+    reset: "Settings reset",
+    missing: "No saved default",
+    exported: "Settings downloaded",
+    imported: "Settings loaded",
+    invalid: "Invalid preset file",
+    failed: "Save failed",
+  };
 
   return (
     <main className="codepen-prototype-shell">
@@ -419,7 +548,7 @@ export function CodepenAuroraPrototype() {
         data-fps={metrics.fps}
         data-resolution={`${metrics.width}x${metrics.height}`}
         data-interface-hidden={interfaceHidden}
-        data-settings-status={saveStatus}
+        data-settings-status={settingsStatus}
         onDoubleClick={() => {
           if (interfaceHidden) setInterfaceHidden(false);
         }}
@@ -475,19 +604,19 @@ export function CodepenAuroraPrototype() {
           </button>
           <button
             type="button"
-            className={`hud-button ${saveStatus === "saved" ? "is-active" : ""}`}
+            className={`hud-button ${["saved", "loaded", "reset", "exported", "imported"].includes(settingsStatus) ? "is-active" : ""}`}
             onClick={saveCurrentSettings}
             title={
-              saveStatus === "failed"
+              settingsStatus === "failed"
                 ? "Browser storage is unavailable"
-                : "Save and sync the aurora and sky settings"
+                : settingsStatus === "invalid"
+                  ? "The selected file is not a valid Aurora preset"
+                : settingsStatus === "missing"
+                  ? "No saved browser default exists yet"
+                : "Save the current settings as the browser default and sync the clean view"
             }
           >
-            {saveStatus === "saved"
-              ? "Saved"
-              : saveStatus === "failed"
-                ? "Save failed"
-                : "Save settings"}
+            {settingsButtonLabel[settingsStatus]}
           </button>
           <button
             type="button"
@@ -508,6 +637,14 @@ export function CodepenAuroraPrototype() {
             {controlsVisible ? "Hide GUI" : "Tune"}
           </button>
         </nav>
+
+        <input
+          ref={presetFileInputRef}
+          type="file"
+          accept="application/json,.json,.aurora.json"
+          hidden
+          onChange={importSettingsFile}
+        />
 
         <aside
           ref={guiHostRef}

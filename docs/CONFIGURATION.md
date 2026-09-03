@@ -26,14 +26,14 @@ DEFAULT_STAR_SKY_CONFIG
   → CSS background + Canvas 2D draw
 
 оба runtime config refs
-  → явный Save settings
+  → явный Save to Default
   → versioned localStorage document
   → /aurora-clean (initial load + inter-tab subscription)
 ```
 
 Source defaults остаются канонической fallback-конфигурацией. Если существует сохранённый browser override, `/aurora-codepen` загружает его при mount, а `/aurora-clean` использует его при mount и при последующих явных сохранениях. Cookies и server persistence отсутствуют.
 
-`Reset` восстанавливает source defaults в текущем конфигураторе; на viewport ≤600 px дополнительно меняет aurora quality на low. Reset не удаляет и не перезаписывает сохранённый override.
+`Reset Settings` восстанавливает source defaults в текущем конфигураторе; на viewport ≤600 px дополнительно меняет aurora quality на low. Reset Settings не удаляет и не перезаписывает browser default.
 
 ## 2. Почему в GUI нет min/max
 
@@ -59,8 +59,11 @@ folder.add(skyConfig, property)
 | Поле | GUI | Default | Влияние и safety clamp |
 | --- | --- | ---: | --- |
 | `skyTopColor` | Top Color | `#01040d` | Цвет верхней точки linear gradient. |
+| `skyTopOpacity` | Top Opacity | `1` | Alpha верхней точки gradient; runtime clamp 0..1. |
 | `skyMiddleColor` | Middle Color | `#041326` | Промежуточный цвет gradient. |
+| `skyMiddleOpacity` | Middle Opacity | `1` | Alpha промежуточной точки gradient; runtime clamp 0..1. |
 | `skyBottomColor` | Bottom Color | `#082039` | Цвет нижней точки gradient. |
+| `skyBottomOpacity` | Bottom Opacity | `1` | Alpha нижней точки gradient; runtime clamp 0..1. |
 | `gradientMidpoint` | Gradient Midpoint | `0.62` | Позиция middle color; Canvas style clamp 0.01..0.99. |
 | `horizonGlowColor` | Horizon Glow Color | `#175278` | Цвет отдельного radial glow поверх linear gradient. |
 | `horizonGlowPosition` | Glow Position | `1.12` | Вертикальный центр radial glow в долях высоты; clamp -1..2. Значение >1 помещает центр ниже viewport и создаёт мягкий подъём света снизу. |
@@ -68,7 +71,7 @@ folder.add(skyConfig, property)
 | `horizonGlowStrength` | Glow Strength | `0.52` | Alpha glow; clamp 0..2, а итоговый CSS alpha ограничивается 1. |
 | `hazeStrength` | Haze Strength | `0.72` | Opacity слабых pseudo-element haze gradients; runtime clamp 0..2, CSS opacity визуально насыщается на 1. |
 
-Scrub speed: midpoint/position/size `0.001`/px; strength/haze `0.005`/px.
+Scrub speed: midpoint/position/size `0.001`/px; opacity/strength/haze `0.005`/px. Числа opacity в GUI не ограничены, но `rgba()` безопасно clamp-ит итог к 0..1.
 
 ### SKY / STARS
 
@@ -247,23 +250,49 @@ effectiveLayers = clamp(layerCount, 1, MAX_AURORA_LAYERS)
 - `bandSharpness` — ширина профиля каждой полосы.
 - `bandStrength` — насколько сильно profile затемняет/усиливает curtains.
 
-## 6. Saved preset и source default — разные уровни
+## 6. Три уровня настроек
 
-Кнопка `Save settings` сохраняет текущие Aurora + Sky values как пользовательский browser override. Это основной способ передать вид на `/aurora-clean`:
+Текущая терминология UI намеренно разделяет три уровня:
 
-1. Настроить оба слоя в `/aurora-codepen`.
-2. Нажать `Save settings`; краткий label меняется на `Saved` либо `Save failed`.
+1. **Source defaults** — значения из TypeScript-констант. Верхний `Reset Settings` возвращает их в редактор, но не меняет localStorage или clean view.
+2. **Browser default** — один пользовательский combined preset в localStorage. Нижний HUD и DEBUG `Save to Default` перезаписывают его и синхронизируют `/aurora-clean`; DEBUG `Load Default Settings` загружает его обратно в редактор.
+3. **File settings** — любое количество переносимых `*.aurora.json`. Верхние `Save Settings` и `Load Settings` скачивают/загружают файлы, не меняя browser default автоматически.
+
+Основной способ передать вид на `/aurora-clean`:
+
+1. Настроить оба слоя в `/aurora-codepen` либо загрузить файл через верхний `Load Settings`.
+2. Нажать `Save to Default`; краткий label меняется на `Default saved` либо `Save failed`.
 3. Нажать `Open clean view` или перейти на `/aurora-clean`.
-4. Если clean view уже открыт, следующее сохранение применяется там автоматически без reload.
+4. Если clean view уже открыт, следующее `Save to Default` применяется там автоматически без reload.
 
 Детали хранения:
 
 - key: `aurora-motion-study:settings:v1`;
 - schema version: `1`;
+- format marker: `aurora-motion-study-preset`;
 - содержимое: `savedAt`, полный `CodepenAuroraConfig`, полный `StarSkyConfig`;
 - доставка: `BroadcastChannel`, `storage` event и same-page custom event;
 - scope: текущий browser origin/profile/device;
 - auto-save отсутствует: GUI drag/input сам по себе не меняет сохранённый документ.
+
+Browser-default команды находятся в `DEBUG`:
+
+- `Save to Default` записывает текущий combined preset в localStorage и clean view;
+- `Load Default Settings` применяет последний валидный browser default;
+- если browser default отсутствует или повреждён, текущие значения не меняются, а HUD кратко показывает `No saved default`;
+- Load обновляет GUI, Three.js uniforms и React sky copy, но сам ничего не сохраняет и не синхронизирует;
+- чтобы передать загруженный вариант в clean view, после Load нужно нажать `Save to Default`.
+
+Старые version-1 документы без новых sky opacity fields остаются совместимыми: parser подставляет актуальный default `1` для отсутствующего primitive field.
+
+### Несколько переносимых file settings
+
+- верхний `Save Settings` скачивает текущий черновик как `aurora-preset-<ISO timestamp>.aurora.json`;
+- каждый экспорт является независимым файлом, поэтому пользователь может хранить, переименовывать и организовывать любое количество вариантов;
+- верхний `Load Settings` принимает один JSON-файл размером до 1 MB;
+- импорт проверяет format, schema version и наличие объектов `aurora`/`sky`, затем нормализует все primitive fields через актуальные source defaults;
+- повреждённый или чужой файл не меняет сцену; HUD кратко показывает `Invalid preset file`;
+- загруженный file preset сразу виден в `/aurora-codepen`, но не записывает browser default и не меняет `/aurora-clean` до отдельного `Save to Default`.
 
 Если пользователь просит изменить именно source default для чистого checkout/browser:
 
@@ -271,11 +300,11 @@ effectiveLayers = clamp(layerCount, 1, MAX_AURORA_LAYERS)
 2. Изменить `DEFAULT_CODEPEN_AURORA_CONFIG`, `DEFAULT_STAR_SKY_CONFIG` или оба.
 3. Обновить exact-value assertions в тестах и таблицы в документации.
 4. Полностью перезапустить dev server.
-5. Очистить старый saved override либо нажать Reset → Save settings, иначе при reload browser override ожидаемо перекроет новый source default.
+5. Очистить старый browser default либо нажать `Reset Settings` → `Save to Default`, иначе при reload browser default ожидаемо перекроет новый source default.
 
-Чтобы сделать source defaults текущим сохранённым output без удаления storage: нажать `Reset`, затем `Save settings`.
+Чтобы сделать source defaults текущим browser default без удаления storage: нажать `Reset Settings`, затем `Save to Default`.
 
-## 7. Reset state помимо чисел
+## 7. Reset Settings state помимо чисел
 
 `resetAll()` также делает:
 
@@ -290,4 +319,4 @@ interfaceHidden  false
 
 `controlsVisible` сейчас не сбрасывается. Если GUI был скрыт через Hide GUI, его можно вернуть кнопкой Tune.
 
-Reset не вызывает `saveAuroraSettings()`. Уже открытый `/aurora-clean` поэтому остаётся на последнем сохранённом виде до следующего Save.
+`Reset Settings` не вызывает `saveAuroraSettings()`. Уже открытый `/aurora-clean` поэтому остаётся на последнем browser default до следующего `Save to Default`.

@@ -87,7 +87,7 @@ function createSkyBackground(config: StarSkyConfig) {
 
   return [
     `radial-gradient(ellipse ${glowSize}% ${glowSize * 0.72}% at 50% ${glowPosition}%, ${rgba(config.horizonGlowColor, glowStrength)} 0%, ${rgba(config.horizonGlowColor, glowStrength * 0.42)} 38%, transparent 72%)`,
-    `linear-gradient(180deg, ${config.skyTopColor} 0%, ${config.skyMiddleColor} ${midpoint}%, ${config.skyBottomColor} 100%)`,
+    `linear-gradient(180deg, ${rgba(config.skyTopColor, config.skyTopOpacity)} 0%, ${rgba(config.skyMiddleColor, config.skyMiddleOpacity)} ${midpoint}%, ${rgba(config.skyBottomColor, config.skyBottomOpacity)} 100%)`,
   ].join(", ");
 }
 

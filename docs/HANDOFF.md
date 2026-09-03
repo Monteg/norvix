@@ -46,7 +46,7 @@
 - Отдельный процедурный фон: CSS night gradients + детерминированные Canvas-звёзды.
 - Слабое индивидуальное мерцание звёзд с частотой от 0.32 до 1.14 и малой амплитудой.
 - Редкая падающая звезда с gradient trail, случайным стартом и ручной кнопкой `Launch Now`.
-- Live-настройки цветов/геометрии градиента, haze, цветов/плотности/яркости/размера звёзд, vertical start/fade и twinkle.
+- Live-настройки цветов/геометрии градиента, независимой прозрачности Top/Middle/Bottom, haze, цветов/плотности/яркости/размера звёзд, vertical start/fade и twinkle.
 - Контролируемые вертикальные curtain lines.
 - Дополнительные периодические полосы по глубине с количеством, выравниванием, силой и резкостью.
 - Регулируемые положение, масштаб, ширина, высота, горизонт, цвета, alpha, glow и качество.
@@ -55,15 +55,18 @@
 
 ### Управление
 
-- Нижний HUD: Pause, Starfield only, Aurora on, Save settings, Open clean view, Hide all UI, Hide GUI/Tune.
+- Нижний HUD: Pause, Starfield only, Aurora on, Save to Default, Open clean view, Hide all UI, Hide GUI/Tune.
+- Самый верх lil-gui: Reset Settings, Load Settings (file), Save Settings (file), затем SKY folders.
 - lil-gui содержит SKY / Gradient, Stars, Shooting Star, а также Aurora Motion, Position, Light, Mask, Nimitz Field, Render и Debug.
 - Визуальные числовые поля без min/max: можно ввести любое число.
 - Дополнительный scrub: зажать левую кнопку на числе и вести мышь влево/вправо.
 - `Shift` во время scrub даёт точность ×0.1.
 - Обычный клик по числу сохраняет ручной ввод.
-- `Save settings` явно сохраняет текущие Aurora + Sky values и отправляет их во все открытые clean-view вкладки.
+- `Save to Default` явно сохраняет текущие Aurora + Sky values как browser default и отправляет их во все открытые clean-view вкладки.
+- DEBUG `Load Default Settings` загружает browser default в редактор; DEBUG `Save to Default` дублирует нижнюю HUD-команду.
+- Верхний `Save Settings` скачивает текущий combined preset как отдельный `*.aurora.json`; верхний `Load Settings` применяет выбранный валидный файл к редактору.
+- Верхний `Reset Settings` читает source defaults и возвращает visual/debug state, не перезаписывая browser default.
 - `Open clean view` открывает `/aurora-clean` в новой вкладке. Там нет заголовков, HUD, GUI или подписей.
-- `Reset` читает значения из `DEFAULT_CODEPEN_AURORA_CONFIG`.
 - `Hide all UI` убирает заголовок, HUD, perf badge, GUI и подпись.
 - Вернуть полный UI: `Esc`, `H` или двойной клик по сцене.
 - `H` не перехватывается, когда пользователь печатает в input/select/textarea/contenteditable.
@@ -72,7 +75,7 @@
 
 - Quality presets: low/medium/high.
 - Device pixel ratio ограничивается одновременно настройкой `pixelRatio` и quality preset.
-- На viewport ≤600 px при старте и Reset выбирается `low`.
+- На viewport ≤600 px при старте и Reset Settings выбирается `low`.
 - Анимация останавливается при Pause, `prefers-reduced-motion`, скрытой вкладке или выходе сцены из viewport.
 - Star canvas мерцает не чаще 30 FPS и использует те же Pause/reduced-motion/visibility/intersection ограничения.
 - ResizeObserver обновляет renderer и aspect uniforms.
@@ -128,8 +131,11 @@ Star-sky source of truth: `DEFAULT_STAR_SKY_CONFIG` в `app/star-sky/config.ts`.
 
 ```text
 skyTopColor             #01040d
+skyTopOpacity           1
 skyMiddleColor          #041326
+skyMiddleOpacity        1
 skyBottomColor          #082039
+skyBottomOpacity        1
 gradientMidpoint        0.62
 horizonGlowColor        #175278
 horizonGlowPosition     1.12
@@ -175,6 +181,9 @@ shootingStarThickness   1.25
 12. После baseline-коммита пользователь попросил полностью убрать изображения из активной сцены. Background, reference, compare split и bitmap sky mask удалены из `/aurora-codepen`; добавлен отдельный процедурный star canvas со слабым мерцанием. Старый image-based route и сами PNG сохранены.
 13. Затем добавлены полные SKY controls и редкая настраиваемая падающая звезда. Настройки неба получили отдельный source default и включены в общий Reset.
 14. Новым отдельным требованием пользователь вернул сохранение: добавлен явный combined Save settings, versioned browser storage и чистая `/aurora-clean`, которая автоматически получает только сохранённые изменения. Это не возвращает отвергнутую правку прозрачности.
+15. Для трёх sky-gradient stops добавлены независимые opacity values. В DEBUG добавлены явные Load Saved Settings и Load Default Settings, сохранив разделение между текущим редактором и опубликованным clean-view preset.
+16. Добавлен переносимый file workflow: любое число timestamped `*.aurora.json` можно скачать на диск и по одному импортировать обратно. Импорт показывает preset в редакторе, но не публикует его в clean view до Save.
+17. Preset actions реорганизованы: file Reset/Load/Save вынесены на самый верх GUI, browser action переименован в Save to Default, а Load Saved Settings — в Load Default Settings. Дублирующие старые команды из DEBUG удалены.
 
 ## 6. Что важно не сломать
 
@@ -186,7 +195,9 @@ shootingStarThickness   1.25
 - Не размывать линии постпроцессом или CSS filter.
 - Не возвращать отдельный flat Ribbon поверх Nimitz field.
 - Не вводить min/max для экспериментальных numeric controls без просьбы пользователя.
-- Не превращать явное сохранение в auto-save: clean view должен меняться только после `Save settings`.
+- Не превращать явное сохранение в auto-save: clean view должен меняться только после `Save to Default`.
+- Не заставлять Load-команды автоматически писать storage или синхронизировать clean view.
+- Не давать import-файлу обходить schema validation и не выполнять из него код; это только JSON primitive config.
 - Не добавлять видимый UI или текст в `/aurora-clean`.
 - Не менять default-пресет только ради «более правильных» математических диапазонов: текущие намеренно содержат значения вне обычных 0..1.
 - Не забывать, что `layerCount: 184` визуально ограничивается compile-time максимумом quality preset.
@@ -205,9 +216,10 @@ shootingStarThickness   1.25
 - `edgeFade: 20.131` намного больше UV-диапазона и поэтому делает edge masks почти полностью открытыми.
 - `bandAlignment: 4` выходит за 0..1 и заставляет GLSL `mix()` экстраполировать. Это часть текущего вида, не ошибка парсинга.
 - `lowerGlow: -1` подавляет нижнее свечение; значения ниже могут приводить к отрицательному множителю до последующего pipeline.
-- Reset возвращает полный visual/debug state, но не принудительно открывает panel-only `controlsVisible` после Hide GUI.
-- Reset не удаляет/перезаписывает browser saved preset. Для синхронизации reset-состояния нужно отдельно нажать Save settings.
+- Root-level Reset Settings возвращает полный visual/debug state, но не принудительно открывает panel-only `controlsVisible` после Hide GUI.
+- Reset Settings не удаляет/перезаписывает browser default. Для синхронизации reset-состояния нужно отдельно нажать Save to Default.
 - Saved preset является same-origin/same-browser state, не серверной публикацией и не синхронизацией между устройствами.
+- File export/import является ручным переносимым слоем поверх browser preset: приложение не ведёт серверный каталог файлов и не получает произвольный доступ к диску.
 - Количество звёзд автоматически зависит от площади viewport и ограничено 260..720; при resize позиции детерминированно пересоздаются.
 - Star canvas ограничен DPR 1.5 и 30 FPS независимо от DPR/quality Nimitz renderer.
 - Во время активной падающей звезды star canvas временно переходит на 60 FPS, после чего возвращается к 30 FPS.
@@ -225,7 +237,7 @@ shootingStarThickness   1.25
 5. Для визуального параметра сначала найти существующий uniform/формулу в `shaders.ts`; не создавать дублирующий слой без необходимости.
 6. Сохранять исходный default-пресет до тех пор, пока пользователь явно не попросит сохранить новый.
 7. После изменения выполнить lint, typecheck, build и tests.
-8. Если проверяется Reset, сначала убедиться, что dev server действительно перезапущен и отдаёт новый bundle.
+8. Если проверяется Reset Settings, сначала убедиться, что dev server действительно перезапущен и отдаёт новый bundle.
 9. Обновить эту документацию, если изменились архитектура, controls, defaults, лицензия или известные ограничения.
 
 ## 9. Статус на момент передачи

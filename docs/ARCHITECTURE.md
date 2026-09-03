@@ -91,7 +91,7 @@ CSS классы `is-background`, `is-aurora` и обычный `is-composite` �
 | `interfaceHidden` | Hide all UI. |
 | `starSkyConfig` | React copy текущего sky preset, передаваемая в Canvas/background style. |
 | `shootingStarTrigger` | Счётчик ручных запусков `Launch Now`. |
-| `saveStatus` | Краткая обратная связь `idle`/`saved`/`failed` для кнопки сохранения. |
+| `settingsStatus` | Краткая обратная связь `idle`/`saved`/`loaded`/`reset`/`missing`/`exported`/`imported`/`invalid`/`failed` для preset-команд. |
 
 Сам конфиг не хранится в React state. Он живёт в `configRef`, потому что lil-gui мутирует объект напрямую. При каждом `onChange` вызывается `scene.setConfig(config)`.
 
@@ -152,7 +152,7 @@ min(window.devicePixelRatio, config.pixelRatio, QUALITY_PRESETS[quality].maxDpr)
 `ProceduralStarSky` — отдельный Canvas 2D слой под WebGL:
 
 - CSS создаёт глубокий сине-чёрный vertical gradient, мягкое свечение у нижнего края и очень слабые radial/linear nebula gradients;
-- top/middle/bottom colors, midpoint, horizon glow и haze управляются через `SKY / GRADIENT`;
+- top/middle/bottom colors, независимая opacity каждой точки, midpoint, horizon glow и haze управляются через `SKY / GRADIENT`;
 - seeded PRNG `mulberry32` создаёт одинаковое поле для одинакового viewport size;
 - количество звёзд зависит от площади и ограничено 260..720;
 - большинство звёзд имеют radius 0.32..0.94 CSS px;
@@ -262,6 +262,17 @@ Render-контролы остаются обычными bounded sliders:
 
 SKY numeric controls, как и Aurora numeric controls, создаются без GUI min/max и получают horizontal scrub. Safety clamps применяются только внутри Canvas renderer. Цвета и `shootingStarEnabled` используют обычные color/boolean controllers.
 
+Root-level preset-actions создаются непосредственно на `gui` до первой `SKY / GRADIENT` folder, поэтому всегда находятся в самом верху панели:
+
+- `Reset Settings` применяет оба source defaults и возвращает visual/debug state;
+- `Load Settings` открывает скрытый single-file picker, валидирует JSON и применяет его только к текущему редактору;
+- `Save Settings` сериализует текущие оба config refs и инициирует browser download.
+
+Browser-default actions остаются в DEBUG:
+
+- `Save to Default` записывает текущие оба config refs в localStorage и синхронизирует clean view;
+- `Load Default Settings` читает browser-default и применяет его только к текущему редактору.
+
 ## 11. Hide-all-UI
 
 Кнопка выставляет `interfaceHidden=true`; section получает `is-interface-hidden`. CSS скрывает UI через visibility/opacity/pointer-events, не размонтируя controls и не сбрасывая visual state.
@@ -271,7 +282,7 @@ SKY numeric controls, как и Aurora numeric controls, создаются бе
 - Escape, только когда UI скрыт;
 - H как toggle, кроме момента редактирования form control;
 - double-click по section, только когда UI скрыт;
-- Reset также ставит `interfaceHidden=false`.
+- Reset Settings также ставит `interfaceHidden=false`.
 
 ## 12. Сохранение и clean-view sync
 
@@ -279,6 +290,7 @@ SKY numeric controls, как и Aurora numeric controls, создаются бе
 
 ```text
 {
+  format: "aurora-motion-study-preset",
   version: 1,
   savedAt: number,
   aurora: CodepenAuroraConfig,
@@ -292,16 +304,24 @@ SKY numeric controls, как и Aurora numeric controls, создаются бе
 
 ```text
 /aurora-codepen config refs
-  → явный Save settings
+  → явный Save to Default
   → localStorage
   → same-page CustomEvent
   → BroadcastChannel + browser storage event
   → /aurora-clean scene.setConfig() + React sky config copy
 ```
 
-`BroadcastChannel` даёт немедленную доставку в уже открытые вкладки. `storage` является межвкладочным fallback; custom event покрывает подписчиков в той же странице. При первом mount обе страницы читают последний сохранённый документ. Изменения GUI намеренно не транслируются до нажатия Save.
+`BroadcastChannel` даёт немедленную доставку в уже открытые вкладки. `storage` является межвкладочным fallback; custom event покрывает подписчиков в той же странице. При первом mount обе страницы читают последний сохранённый документ. Изменения GUI намеренно не транслируются до нажатия `Save to Default`.
 
-`/aurora-clean` создаёт тот же `AuroraCodepenScene` и `ProceduralStarSky`, но не монтирует никаких controls. При отсутствии/повреждении saved document используются source defaults. `Reset` работает только с текущим состоянием конфигуратора и не мутирует localStorage.
+Добавление primitive полей не требует смены schema version: parser собирает документ по актуальным source defaults. Поэтому старый saved document без `skyTopOpacity`/`skyMiddleOpacity`/`skyBottomOpacity` остаётся валидным и получает для них default `1`.
+
+`/aurora-clean` создаёт тот же `AuroraCodepenScene` и `ProceduralStarSky`, но не монтирует никаких controls. При отсутствии/повреждении saved document используются source defaults. Root-level `Reset Settings` работает только с текущим состоянием конфигуратора и не мутирует localStorage.
+
+### Переносимые preset-файлы
+
+LocalStorage document и скачиваемый `*.aurora.json` используют один validated contract. `createAuroraSettingsSnapshot()` создаёт полный снимок, `serializeAuroraSettings()` выдаёт читаемый JSON, `parseAuroraSettingsJson()` используется и localStorage, и file import.
+
+Верхний `Save Settings` выполняет экспорт целиком в browser через `Blob` + object URL. Верхний `Load Settings` читает только явно выбранный пользователем файл, ограничивает размер 1 MB и отвергает неправильный format/version либо документ без `aurora`/`sky`. Успешная загрузка вызывает общий `applySettings()`, поэтому GUI, WebGL uniforms и procedural sky обновляются одновременно. Файл не загружается на сервер и не получает автоматического доступа к другим файлам на диске.
 
 ## 13. Старый texture-driven маршрут
 
@@ -328,6 +348,6 @@ SKY numeric controls, как и Aurora numeric controls, создаются бе
 7. Добавить control в подходящую GUI folder через `addNumber()` или typed control.
 8. Добавить regression assertions в test.
 9. Описать параметр и его реальные clamp/interactions в `docs/CONFIGURATION.md`.
-10. Проверить крайние значения, Reset, transparent gaps, mask и FPS.
+10. Проверить крайние значения, Reset Settings, transparent gaps, mask и FPS.
 
 Для нового sky-параметра аналогичная цепочка: `StarSkyConfig` → default → `addSkyNumber`/color/boolean GUI → `ProceduralStarSky` → tests → `docs/CONFIGURATION.md`. GLSL/Three scene при этом не меняются.

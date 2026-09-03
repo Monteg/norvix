@@ -24,11 +24,14 @@
 - WebGL-слой прозрачный: `alpha: true`, clear alpha `0`, `premultipliedAlpha: false`, `THREE.NormalBlending`.
 - Активный маршрут не загружает PNG, texture mask или другие изображения. `public/hero/` сохранён только для старого `/aurora-prototype`.
 - Числовые контролы визуальных параметров намеренно не имеют min/max в lil-gui и поддерживают горизонтальный drag по полю числа. Исключение — технические Render-контролы.
-- Исходные значения по умолчанию хранятся в `DEFAULT_CODEPEN_AURORA_CONFIG` и `DEFAULT_STAR_SKY_CONFIG`. Явная кнопка `Save settings` сохраняет пользовательский override обоих пресетов в versioned `localStorage` и синхронизирует открытые `/aurora-clean` вкладки. Автосохранения при каждом изменении нет.
+- Исходные значения по умолчанию хранятся в `DEFAULT_CODEPEN_AURORA_CONFIG` и `DEFAULT_STAR_SKY_CONFIG`. Кнопка `Save to Default` сохраняет пользовательский browser-default обоих пресетов в versioned `localStorage` и синхронизирует открытые `/aurora-clean` вкладки. Автосохранения при каждом изменении нет.
 - `/aurora-clean` при открытии читает последний сохранённый override, а затем слушает `BroadcastChannel`/`storage`. Без сохранения он использует source defaults.
-- `Reset` должен возвращать оба исходных пресета; на экранах до 600 px aurora quality после reset принудительно `low`.
-- `Reset` не удаляет и не перезаписывает сохранённый override. Чтобы сделать reset-состояние сохранённым, после Reset нужно отдельно нажать `Save settings`.
-- SKY controls регулируют градиент, звёзды, их вертикальный fade/мерцание и падающую звезду. Числовые sky-контролы используют тот же unbounded input + horizontal scrub.
+- Root-level `Reset Settings` должен возвращать оба исходных пресета; на экранах до 600 px aurora quality после reset принудительно `low`.
+- `Reset Settings` не удаляет и не перезаписывает сохранённый browser-default. Чтобы сделать reset-состояние сохранённым, после `Reset Settings` нужно отдельно нажать `Save to Default`.
+- SKY controls регулируют цвета и независимую opacity трёх точек градиента, звёзды, их вертикальный fade/мерцание и падающую звезду. Числовые sky-контролы используют тот же unbounded input + horizontal scrub.
+- Перед SKY folders на root-level GUI находятся `Reset Settings`, `Load Settings` и `Save Settings`. Reset читает source defaults; Load/Save загружают и скачивают versioned `*.aurora.json`.
+- В DEBUG находятся `Save to Default` и `Load Default Settings`: первая перезаписывает browser-default и clean view, вторая загружает browser-default только в редактор.
+- File Load не пишет localStorage и не синхронизирует clean view до отдельного `Save to Default`.
 - Полный UI скрывается кнопкой `Hide all UI`. Возврат: `Esc`, `H` или двойной клик по сцене.
 - Проект пока остаётся локальным. Не публиковать и не менять `.openai/hosting.json`, если пользователь явно не попросил.
 
@@ -42,7 +45,7 @@
 - При изменении исходного пресета синхронно обновлять assertions в `tests/rendered-html.test.mjs` и таблицу в `docs/CONFIGURATION.md`.
 - При изменении шейдера сохранять attribution-комментарий и файл `app/aurora-codepen/LICENSE.md`.
 - Не считать значение `layerCount` фактически неограниченным: shader loop ограничен compile-time пресетом качества.
-- Не полагаться на старую вкладку после изменения default-пресета. Если Reset возвращает старые числа, полностью перезапустить dev server.
+- Не полагаться на старую вкладку после изменения default-пресета. Если `Reset Settings` возвращает старые числа, полностью перезапустить dev server.
 - Не добавлять controls или видимый текст в `/aurora-clean`: это целевой чистый output. Управление остаётся на `/aurora-codepen`.
 
 ## Обязательная проверка перед передачей результата

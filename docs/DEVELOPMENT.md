@@ -149,18 +149,26 @@ npm test
 - В прозрачных промежутках видны звёзды, нет чёрного/серого прямоугольника WebGL.
 - Звёзды мерцают слабо, без резких вспышек и синхронного мигания.
 - SKY / GRADIENT controls сразу меняют три цвета, midpoint, glow и haze.
+- Top/Middle/Bottom Opacity независимо меняют alpha соответствующих gradient stops; значения вне 0..1 безопасно clamp-ятся renderer-ом.
 - SKY / STARS controls меняют density/brightness/size и плавные Start/Fade Y.
 - `Launch Now` запускает падающую звезду; interval, color, brightness, speed, trail, angle и thickness влияют на следующий/ручной полёт.
 - Pause/Play работает.
 - Starfield only и Aurora on работают.
 - Numeric input принимает ручное значение.
 - Drag по числу меняет значение; Shift замедляет изменение.
-- Reset возвращает одновременно Aurora и Star Sky source defaults.
-- Save settings показывает Saved и сохраняет текущие Aurora + Sky values.
+- Root-level Reset Settings возвращает одновременно Aurora и Star Sky source defaults.
+- Нижний/DEBUG Save to Default показывает Default saved, записывает browser default и синхронизирует clean view.
+- DEBUG Load Default Settings восстанавливает browser default и обновляет все GUI displays.
+- После Load Default Settings clean view не меняется до отдельного Save to Default.
+- Верхний Save Settings скачивает читаемый `*.aurora.json` с format/version и полными Aurora/Sky objects.
+- Несколько экспортов создают независимые timestamped файлы.
+- Верхний Load Settings сразу применяет валидный файл к GUI, WebGL и sky; повторный выбор того же файла тоже работает.
+- Импорт чужого/повреждённого JSON или файла больше 1 MB показывает Invalid preset file и не меняет текущие настройки.
+- После Load Settings clean view не меняется до отдельного Save to Default.
 - Open clean view открывает `/aurora-clean`, где нет HUD, GUI, heading или note.
 - После нового Save уже открытая clean-view вкладка меняет оба слоя без reload.
 - GUI drag/input без Save не меняет clean view.
-- Reload обеих страниц восстанавливает последний сохранённый combined preset; Reset сам по себе его не перезаписывает.
+- Reload обеих страниц восстанавливает browser default; Reset Settings сам по себе его не перезаписывает.
 - Hide GUI скрывает только panel.
 - Hide all UI убирает все подписи/controls.
 - Esc, H и double-click возвращают UI.
@@ -171,7 +179,7 @@ Browser screenshots, DOM inspection и автоматические clicks вы�
 
 ## 7. Частые проблемы
 
-### Reset возвращает старые значения
+### Reset Settings возвращает старые значения
 
 Наиболее вероятна старая dev-server сессия или старый client bundle.
 
@@ -179,9 +187,9 @@ Browser screenshots, DOM inspection и автоматические clicks вы�
 2. Остановить старую dev session.
 3. Запустить одну новую session.
 4. Reload страницы.
-5. Изменить Speed/Band Count и нажать Reset.
+5. Изменить Speed/Band Count и нажать Reset Settings.
 
-Проверить также, не загружается ли ожидаемый сохранённый browser override. Reset показывает source defaults, но reload снова применит saved preset, пока не выполнить Reset → Save settings или не очистить ключ `aurora-motion-study:settings:v1`.
+Проверить также, не загружается ли ожидаемый browser default. Reset Settings показывает source defaults, но reload снова применит browser default, пока не выполнить Reset Settings → Save to Default или не очистить ключ `aurora-motion-study:settings:v1`.
 
 ### Clean view не обновился после Save
 
@@ -295,7 +303,7 @@ dist/
 
 1. Выполнено точное визуальное/функциональное требование пользователя.
 2. Не нарушены procedural starfield/sky controls, transparent aurora compositing и оба default-пресета без разрешения.
-3. GUI/Reset/debug controls продолжают работать.
+3. GUI/Reset Settings/debug controls продолжают работать.
 4. TypeScript, ESLint, production build и 6 tests проходят.
 5. Изменения defaults/architecture/controls отражены в docs.
 6. Пользователю коротко сообщены результат и доступные способы управления.
