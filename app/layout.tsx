@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Aurora Motion Study",
-  description: "A subtle WebGL northern lights prototype.",
+  title: "Aurora",
+  description: "Procedural northern lights and a gently animated starfield.",
 };
 
 export default function RootLayout({

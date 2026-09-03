@@ -1,22 +1,22 @@
-# Справочник настроек `/aurora-codepen`
+# Справочник настроек `/settings`
 
 ## 1. Source of truth
 
 Типы и исходные пресеты находятся в:
 
 ```text
-app/aurora-codepen/config.ts
+app/aurora-renderer/config.ts
 app/star-sky/config.ts
 ```
 
 Runtime flow:
 
 ```text
-DEFAULT_CODEPEN_AURORA_CONFIG
+DEFAULT_AURORA_CONFIG
   → configRef в React
   → lil-gui мутирует объект
-  → AuroraCodepenScene.setConfig()
-  → ShaderMaterial uniforms
+  → AuroraScene.setConfig()
+  → WebGL program uniforms
   → fragment shader
 
 DEFAULT_STAR_SKY_CONFIG
@@ -28,12 +28,12 @@ DEFAULT_STAR_SKY_CONFIG
 оба runtime config refs
   → явный Save to Default
   → versioned localStorage document
-  → /aurora-clean (initial load + inter-tab subscription)
+  → / (initial load + inter-tab subscription)
 ```
 
-Source defaults остаются канонической fallback-конфигурацией. Если существует сохранённый browser override, `/aurora-codepen` загружает его при mount, а `/aurora-clean` использует его при mount и при последующих явных сохранениях. Cookies и server persistence отсутствуют.
+Source defaults остаются канонической fallback-конфигурацией. Если существует сохранённый browser override, `/settings` загружает его при mount, а `/` использует его при mount и при последующих явных сохранениях. Cookies и server persistence отсутствуют.
 
-`Reset Settings` восстанавливает source defaults в текущем конфигураторе; на viewport ≤600 px дополнительно меняет aurora quality на low. Reset Settings не удаляет и не перезаписывает browser default.
+`Reset Settings` восстанавливает source defaults в текущем конфигураторе. Device profile применяет безопасный effective quality независимо от размера окна. Reset Settings не удаляет и не перезаписывает browser default.
 
 ## 2. Почему в GUI нет min/max
 
@@ -156,7 +156,7 @@ Scrub speed: Intensity `0.01`/px; остальные numeric Light controls `0.0
 | `centerBias` | Center Bias | `0.283` | `uCenterBias` | Управляет exponent horizontal mask через `mix(1, 3, value)`. Не clamp-ится, поэтому вне 0..1 exponent экстраполируется. |
 Scrub speed: `0.001`/px.
 
-### AURORA / NIMITZ FIELD
+### AURORA / FIELD
 
 | Поле | GUI | Default | Uniform | Фактическое влияние и ограничения |
 | --- | --- | ---: | --- | --- |
@@ -194,7 +194,7 @@ lowerGlow          0.001/px
 
 | Поле | GUI | Default | Реальное поведение |
 | --- | --- | ---: | --- |
-| `quality` | Quality | `high` | Выбирает compile-time maximum layers и max DPR; смена пересоздаёт ShaderMaterial. На viewport ≤600 px старт/Reset принудительно low. |
+| `quality` | Quality | `high` | Выбирает запрошенный compile-time maximum layers и max DPR; смена effective quality пересобирает WebGL program. Device profile может автоматически понизить фактическое значение. |
 | `pixelRatio` | Pixel Ratio | `1.25` | UI 0.5..2. Реальный DPR равен минимуму device DPR, этого значения и quality maxDpr. |
 | `dithering` | Dithering | `0` | UI 0..0.08. Добавляет hash-noise к RGB, умноженный на alpha. Default полностью выключен. |
 
@@ -202,8 +202,8 @@ lowerGlow          0.001/px
 
 | Quality | `MAX_AURORA_LAYERS` | `maxDpr` | Комментарий |
 | --- | ---: | ---: | --- |
-| low | 32 | 1.0 | Mobile/fallback. |
-| medium | 42 | 1.25 | Компромисс. |
+| low | 24 | 1.0 | Слабые устройства; device profile дополнительно ограничивает DPR до 0.9 и FPS до 30. |
+| medium | 36 | 1.25 | Средние устройства; device profile ограничивает DPR до 1.15 и FPS до 45. |
 | high | 50 | 1.75 | Текущий desktop default. |
 
 ### Важное следствие для `layerCount`
@@ -215,6 +215,10 @@ effectiveLayers = clamp(layerCount, 1, MAX_AURORA_LAYERS)
 ```
 
 Чтобы реально получить 184 samples, недостаточно изменить GUI/config. Нужно повысить `iterations` в `QUALITY_PRESETS`, пересобрать shader и проверить производительность/совместимость WebGL на целевых GPU.
+
+### Автоматический device cap
+
+`quality` и `pixelRatio` задают запрошенный максимум. `app/performance.ts` может понизить фактическую quality, DPR и frame rate на слабом устройстве. Это не переписывает preset и не меняет число в GUI. Performance badge показывает фактически используемые quality/DPR/FPS.
 
 ## 5. Взаимодействия параметров
 
@@ -255,14 +259,14 @@ effectiveLayers = clamp(layerCount, 1, MAX_AURORA_LAYERS)
 Текущая терминология UI намеренно разделяет три уровня:
 
 1. **Source defaults** — значения из TypeScript-констант. Верхний `Reset Settings` возвращает их в редактор, но не меняет localStorage или clean view.
-2. **Browser default** — один пользовательский combined preset в localStorage. Нижний HUD и DEBUG `Save to Default` перезаписывают его и синхронизируют `/aurora-clean`; DEBUG `Load Default Settings` загружает его обратно в редактор.
+2. **Browser default** — один пользовательский combined preset в localStorage. Нижний HUD и DEBUG `Save to Default` перезаписывают его и синхронизируют `/`; DEBUG `Load Default Settings` загружает его обратно в редактор.
 3. **File settings** — любое количество переносимых `*.aurora.json`. Верхние `Save Settings` и `Load Settings` скачивают/загружают файлы, не меняя browser default автоматически.
 
-Основной способ передать вид на `/aurora-clean`:
+Основной способ передать вид на `/`:
 
-1. Настроить оба слоя в `/aurora-codepen` либо загрузить файл через верхний `Load Settings`.
+1. Настроить оба слоя в `/settings` либо загрузить файл через верхний `Load Settings`.
 2. Нажать `Save to Default`; краткий label меняется на `Default saved` либо `Save failed`.
-3. Нажать `Open clean view` или перейти на `/aurora-clean`.
+3. Нажать `Open live view` или перейти на `/`.
 4. Если clean view уже открыт, следующее `Save to Default` применяется там автоматически без reload.
 
 Детали хранения:
@@ -270,7 +274,7 @@ effectiveLayers = clamp(layerCount, 1, MAX_AURORA_LAYERS)
 - key: `aurora-motion-study:settings:v1`;
 - schema version: `1`;
 - format marker: `aurora-motion-study-preset`;
-- содержимое: `savedAt`, полный `CodepenAuroraConfig`, полный `StarSkyConfig`;
+- содержимое: `savedAt`, полный `AuroraConfig`, полный `StarSkyConfig`;
 - доставка: `BroadcastChannel`, `storage` event и same-page custom event;
 - scope: текущий browser origin/profile/device;
 - auto-save отсутствует: GUI drag/input сам по себе не меняет сохранённый документ.
@@ -280,7 +284,7 @@ Browser-default команды находятся в `DEBUG`:
 - `Save to Default` записывает текущий combined preset в localStorage и clean view;
 - `Load Default Settings` применяет последний валидный browser default;
 - если browser default отсутствует или повреждён, текущие значения не меняются, а HUD кратко показывает `No saved default`;
-- Load обновляет GUI, Three.js uniforms и React sky copy, но сам ничего не сохраняет и не синхронизирует;
+- Load обновляет GUI, WebGL uniforms и React sky copy, но сам ничего не сохраняет и не синхронизирует;
 - чтобы передать загруженный вариант в clean view, после Load нужно нажать `Save to Default`.
 
 Старые version-1 документы без новых sky opacity fields остаются совместимыми: parser подставляет актуальный default `1` для отсутствующего primitive field.
@@ -292,12 +296,12 @@ Browser-default команды находятся в `DEBUG`:
 - верхний `Load Settings` принимает один JSON-файл размером до 1 MB;
 - импорт проверяет format, schema version и наличие объектов `aurora`/`sky`, затем нормализует все primitive fields через актуальные source defaults;
 - повреждённый или чужой файл не меняет сцену; HUD кратко показывает `Invalid preset file`;
-- загруженный file preset сразу виден в `/aurora-codepen`, но не записывает browser default и не меняет `/aurora-clean` до отдельного `Save to Default`.
+- загруженный file preset сразу виден в `/settings`, но не записывает browser default и не меняет `/` до отдельного `Save to Default`.
 
 Если пользователь просит изменить именно source default для чистого checkout/browser:
 
 1. Зафиксировать точные текущие числа из GUI; не угадывать по изображению.
-2. Изменить `DEFAULT_CODEPEN_AURORA_CONFIG`, `DEFAULT_STAR_SKY_CONFIG` или оба.
+2. Изменить `DEFAULT_AURORA_CONFIG`, `DEFAULT_STAR_SKY_CONFIG` или оба.
 3. Обновить exact-value assertions в тестах и таблицы в документации.
 4. Полностью перезапустить dev server.
 5. Очистить старый browser default либо нажать `Reset Settings` → `Save to Default`, иначе при reload browser default ожидаемо перекроет новый source default.
@@ -319,4 +323,4 @@ interfaceHidden  false
 
 `controlsVisible` сейчас не сбрасывается. Если GUI был скрыт через Hide GUI, его можно вернуть кнопкой Tune.
 
-`Reset Settings` не вызывает `saveAuroraSettings()`. Уже открытый `/aurora-clean` поэтому остаётся на последнем browser default до следующего `Save to Default`.
+`Reset Settings` не вызывает `saveAuroraSettings()`. Уже открытый `/` поэтому остаётся на последнем browser default до следующего `Save to Default`.

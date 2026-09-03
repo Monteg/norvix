@@ -8,16 +8,17 @@
  * aurora can be composited over the project's independent procedural starfield.
  */
 
-export const codepenAuroraVertexShader = /* glsl */ `
+export const auroraVertexShader = /* glsl */ `
+  attribute vec2 aPosition;
   varying vec2 vUv;
 
   void main() {
-    vUv = uv;
-    gl_Position = vec4(position, 1.0);
+    vUv = aPosition * 0.5 + 0.5;
+    gl_Position = vec4(aPosition, 0.0, 1.0);
   }
 `;
 
-export const codepenAuroraFragmentShader = /* glsl */ `
+export const auroraFragmentShader = /* glsl */ `
   precision highp float;
 
   uniform vec2 iResolution;
@@ -62,7 +63,7 @@ export const codepenAuroraFragmentShader = /* glsl */ `
 
   varying vec2 vUv;
 
-  const mat2 NIMITZ_ROTATION = mat2(0.95534, -0.29552, 0.29552, 0.95534);
+  const mat2 CURTAIN_ROTATION = mat2(0.95534, -0.29552, 0.29552, 0.95534);
 
   mat2 rotate2d(float angle) {
     float cosine = cos(angle);
@@ -85,6 +86,12 @@ export const codepenAuroraFragmentShader = /* glsl */ `
     return fract(sin(dot(point, vec2(12.9898, 4.1414))) * 43758.5453);
   }
 
+  vec3 linearToSrgb(vec3 color) {
+    vec3 lower = color * 12.92;
+    vec3 upper = 1.055 * pow(max(color, 0.0), vec3(1.0 / 2.4)) - 0.055;
+    return mix(lower, upper, step(vec3(0.0031308), color));
+  }
+
   float triangularCurtainNoise(vec2 point) {
     float amplitude = 1.8;
     float displacementScale = 2.5;
@@ -103,7 +110,7 @@ export const codepenAuroraFragmentShader = /* glsl */ `
       amplitude *= 0.42;
       point *= 1.21 + (accumulated - 1.0) * 0.02 * uWarpStrength;
       accumulated += triangleWave(point.x + triangleWave(point.y)) * amplitude;
-      point = point * -NIMITZ_ROTATION;
+      point = point * -CURTAIN_ROTATION;
     }
 
     return clamp(
@@ -113,7 +120,7 @@ export const codepenAuroraFragmentShader = /* glsl */ `
     );
   }
 
-  vec4 renderNimitzAurora(vec3 rayOrigin, vec3 rayDirection, vec2 fragCoord) {
+  vec4 renderAurora(vec3 rayOrigin, vec3 rayDirection, vec2 fragCoord) {
     vec4 accumulatedColor = vec4(0.0);
     vec4 averagedColor = vec4(0.0);
     float effectiveLayers = clamp(uLayerCount, 1.0, float(MAX_AURORA_LAYERS));
@@ -199,7 +206,7 @@ export const codepenAuroraFragmentShader = /* glsl */ `
 
     vec4 auroraField = vec4(0.0);
     if (rayDirection.y > 0.0) {
-      auroraField = renderNimitzAurora(rayOrigin, rayDirection, fragCoord);
+      auroraField = renderAurora(rayOrigin, rayDirection, fragCoord);
     }
     auroraField = smoothstep(vec4(0.0), vec4(1.5), auroraField);
 
@@ -262,7 +269,6 @@ export const codepenAuroraFragmentShader = /* glsl */ `
       return;
     }
 
-    gl_FragColor = vec4(auroraColor, auroraAlpha);
-    #include <colorspace_fragment>
+    gl_FragColor = vec4(linearToSrgb(auroraColor), auroraAlpha);
   }
 `;

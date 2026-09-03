@@ -1,56 +1,57 @@
 # Инструкции для AI-агентов
 
-Область действия этого файла — весь репозиторий.
+Область действия — весь репозиторий.
 
-## С чего начинать
+## Перед изменениями
 
 1. Полностью прочитать `docs/HANDOFF.md`.
-2. Для изменений визуала прочитать `docs/ARCHITECTURE.md` и `docs/CONFIGURATION.md`.
-3. Для запуска, проверки или подготовки коммита прочитать `docs/DEVELOPMENT.md`.
-4. Для работы с изображениями и шейдером прочитать `docs/ASSETS_AND_LICENSING.md`.
+2. Для визуала прочитать `docs/ARCHITECTURE.md` и `docs/CONFIGURATION.md`.
+3. Для запуска или подготовки коммита прочитать `docs/DEVELOPMENT.md`.
+4. Для shader/licensing прочитать `docs/ASSETS_AND_LICENSING.md`.
 
-## Активная цель проекта
+## Текущий продукт
 
-- Основной эксперимент, над которым сейчас работает пользователь: `/aurora-codepen`.
-- `/aurora-clean` — чистый output того же эксперимента: только процедурное небо и сияние, без HUD, GUI, заголовков и подписей.
-- Его задача — процедурное северное сияние Nimitz поверх отдельного процедурного звёздного неба без image layers.
-- В промежутках сияния обязаны быть видны глубокое сине-чёрное небо и слегка мерцающие звёзды. Чёрный или серый прямоугольник WebGL недопустим.
-- Главный визуальный ориентир: отчётливые световые занавеси и полосы, которые имеют перспективу, изгибаются и уходят в прозрачный fade. Эффект не должен превращаться в сплошной туман.
-- `/aurora-prototype` — соседний, более ранний texture-driven эксперимент. Не смешивать его реализацию с активным Nimitz-маршрутом без явной просьбы пользователя.
+- `/` — финальный output: только процедурное небо и сияние, без интерфейса.
+- `/settings` — единственный configurator с HUD и lil-gui.
+- Bitmap assets, texture-driven renderer и исследовательские маршруты удалены. Не возвращать их без явной просьбы.
+- Небо и прозрачная WebGL-аура остаются отдельными слоями.
+- В промежутках сияния должны быть видны глубокое небо и звёзды; непрозрачный прямоугольник WebGL недопустим.
 
-## Решения, которые нельзя молча отменять
+## Настройки
 
-- Активный шейдер основан на Nimitz ShaderToy `XtGGRt`. Самодельный Ribbon и вариант Sabo Sugi были сознательно отвергнуты.
-- WebGL-слой прозрачный: `alpha: true`, clear alpha `0`, `premultipliedAlpha: false`, `THREE.NormalBlending`.
-- Активный маршрут не загружает PNG, texture mask или другие изображения. `public/hero/` сохранён только для старого `/aurora-prototype`.
-- Числовые контролы визуальных параметров намеренно не имеют min/max в lil-gui и поддерживают горизонтальный drag по полю числа. Исключение — технические Render-контролы.
-- Исходные значения по умолчанию хранятся в `DEFAULT_CODEPEN_AURORA_CONFIG` и `DEFAULT_STAR_SKY_CONFIG`. Кнопка `Save to Default` сохраняет пользовательский browser-default обоих пресетов в versioned `localStorage` и синхронизирует открытые `/aurora-clean` вкладки. Автосохранения при каждом изменении нет.
-- `/aurora-clean` при открытии читает последний сохранённый override, а затем слушает `BroadcastChannel`/`storage`. Без сохранения он использует source defaults.
-- Root-level `Reset Settings` должен возвращать оба исходных пресета; на экранах до 600 px aurora quality после reset принудительно `low`.
-- `Reset Settings` не удаляет и не перезаписывает сохранённый browser-default. Чтобы сделать reset-состояние сохранённым, после `Reset Settings` нужно отдельно нажать `Save to Default`.
-- SKY controls регулируют цвета и независимую opacity трёх точек градиента, звёзды, их вертикальный fade/мерцание и падающую звезду. Числовые sky-контролы используют тот же unbounded input + horizontal scrub.
-- Перед SKY folders на root-level GUI находятся `Reset Settings`, `Load Settings` и `Save Settings`. Reset читает source defaults; Load/Save загружают и скачивают versioned `*.aurora.json`.
-- В DEBUG находятся `Save to Default` и `Load Default Settings`: первая перезаписывает browser-default и clean view, вторая загружает browser-default только в редактор.
-- File Load не пишет localStorage и не синхронизирует clean view до отдельного `Save to Default`.
-- Полный UI скрывается кнопкой `Hide all UI`. Возврат: `Esc`, `H` или двойной клик по сцене.
-- Проект пока остаётся локальным. Не публиковать и не менять `.openai/hosting.json`, если пользователь явно не попросил.
+- Source defaults: `DEFAULT_AURORA_CONFIG` и `DEFAULT_STAR_SKY_CONFIG`.
+- `Reset Settings` возвращает source defaults только в редакторе.
+- `Save to Default` пишет combined preset в versioned localStorage и синхронизирует `/`.
+- `Load Default Settings` читает browser-default только в редактор.
+- `Save Settings`/`Load Settings` скачивают и загружают `*.aurora.json`; file load не публикуется до `Save to Default`.
+- Визуальные numeric controls не имеют min/max и поддерживают horizontal scrub. Ограничены только технические Render controls.
+
+## Производительность
+
+- `app/performance.ts` определяет device tier и ограничивает фактические quality, DPR, FPS и star samples.
+- Пользовательская `quality` — верхняя граница; фактическое качество может быть ниже на слабом устройстве.
+- Не удалять pause/reduced-motion/visibility/intersection lifecycle.
+- Не вызывать resize WebGL при обычном изменении uniform: resize нужен только для размера, DPR или effective quality.
+- Compile-time loops: 24/36/50 для low/medium/high.
+
+## Лицензирование
+
+- Активный GLSL содержит производную часть с обязательной CC BY-NC-SA 3.0 attribution.
+- Не удалять header из `app/aurora-renderer/shaders.ts` и `THIRD_PARTY_NOTICES.md` без документально подтверждённого разрешения правообладателя или полной независимой замены shader-кода.
+- Новые оригинальные части могут иметь отдельную лицензию владельца проекта, но она не отменяет third-party terms.
 
 ## Правила изменений
 
-- Сохранять отдельные procedural-sky и transparent-aurora слои; не переносить небо внутрь Nimitz fragment shader без явной причины.
-- Не заменять рабочую архитектуру новым starter/template.
-- Не удалять пользовательские или неотслеживаемые файлы без явного разрешения.
-- Новую числовую настройку проводить через весь путь: type/default → GUI → material uniform → `updateUniforms()` → GLSL → тест → документация.
-- Для sky-настройки путь другой: `StarSkyConfig`/default → GUI → React config copy → `ProceduralStarSky`/Canvas → тест → документация.
-- При изменении исходного пресета синхронно обновлять assertions в `tests/rendered-html.test.mjs` и таблицу в `docs/CONFIGURATION.md`.
-- При изменении шейдера сохранять attribution-комментарий и файл `app/aurora-codepen/LICENSE.md`.
-- Не считать значение `layerCount` фактически неограниченным: shader loop ограничен compile-time пресетом качества.
-- Не полагаться на старую вкладку после изменения default-пресета. Если `Reset Settings` возвращает старые числа, полностью перезапустить dev server.
-- Не добавлять controls или видимый текст в `/aurora-clean`: это целевой чистый output. Управление остаётся на `/aurora-codepen`.
+- Не публиковать и не менять `.openai/hosting.json` без явной просьбы.
+- Не трогать `norvix/`.
+- Новую aurora-настройку проводить через type/default → GUI → uniform → `updateUniforms()` → GLSL → test → docs.
+- Новую sky-настройку проводить через `StarSkyConfig`/default → GUI → React config → `ProceduralStarSky` → test → docs.
+- При изменении defaults обновлять assertions и `docs/CONFIGURATION.md`.
+- Не добавлять UI или текст на `/`.
 
-## Обязательная проверка перед передачей результата
+## Обязательная проверка
 
-Использовать Node.js 22.13+ и выполнить:
+Использовать Node.js 22.13+:
 
 ```text
 npm run lint
@@ -59,8 +60,4 @@ npm run build
 node --test tests/rendered-html.test.mjs
 ```
 
-`npm test` уже включает повторную сборку. Подробные Windows/Codex-команды приведены в `docs/DEVELOPMENT.md`.
-
-## Git-гигиена
-
-Baseline-коммит уже существует. Не использовать бездумно `git add -A`: в рабочей папке есть корневые дубликаты ассетов, `output/` и `norvix/`, которые приложение не импортирует. Точный статус и рекомендации находятся в `docs/DEVELOPMENT.md`.
+Не использовать `git add -A`: `norvix/` не относится к приложению.

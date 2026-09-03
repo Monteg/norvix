@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { AuroraView } from "./components/AuroraView";
 
 export default function Home() {
-  redirect("/aurora-prototype");
+  return <AuroraView />;
 }

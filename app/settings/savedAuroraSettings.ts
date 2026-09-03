@@ -1,7 +1,7 @@
 import {
-  DEFAULT_CODEPEN_AURORA_CONFIG,
-  type CodepenAuroraConfig,
-} from "../aurora-codepen/config";
+  DEFAULT_AURORA_CONFIG,
+  type AuroraConfig,
+} from "../aurora-renderer/config";
 import {
   DEFAULT_STAR_SKY_CONFIG,
   type StarSkyConfig,
@@ -16,7 +16,7 @@ export type SavedAuroraSettings = {
   format: typeof AURORA_SETTINGS_FORMAT;
   version: 1;
   savedAt: number;
-  aurora: CodepenAuroraConfig;
+  aurora: AuroraConfig;
   sky: StarSkyConfig;
 };
 
@@ -46,10 +46,10 @@ export function parseSavedAuroraSettings(value: unknown): SavedAuroraSettings | 
     return null;
   }
 
-  const aurora = mergePrimitiveConfig(DEFAULT_CODEPEN_AURORA_CONFIG, value.aurora);
+  const aurora = mergePrimitiveConfig(DEFAULT_AURORA_CONFIG, value.aurora);
   const sky = mergePrimitiveConfig(DEFAULT_STAR_SKY_CONFIG, value.sky);
   if (!(["low", "medium", "high"] as const).includes(aurora.quality)) {
-    aurora.quality = DEFAULT_CODEPEN_AURORA_CONFIG.quality;
+    aurora.quality = DEFAULT_AURORA_CONFIG.quality;
   }
 
   return {
@@ -82,14 +82,14 @@ export function parseAuroraSettingsJson(
 }
 
 export function createAuroraSettingsSnapshot(
-  auroraConfig: CodepenAuroraConfig,
+  auroraConfig: AuroraConfig,
   starSkyConfig: StarSkyConfig,
 ): SavedAuroraSettings {
   return {
     format: AURORA_SETTINGS_FORMAT,
     version: 1,
     savedAt: Date.now(),
-    aurora: mergePrimitiveConfig(DEFAULT_CODEPEN_AURORA_CONFIG, auroraConfig),
+    aurora: mergePrimitiveConfig(DEFAULT_AURORA_CONFIG, auroraConfig),
     sky: mergePrimitiveConfig(DEFAULT_STAR_SKY_CONFIG, starSkyConfig),
   };
 }
@@ -109,7 +109,7 @@ export function loadSavedAuroraSettings() {
 }
 
 export function saveAuroraSettings(
-  auroraConfig: CodepenAuroraConfig,
+  auroraConfig: AuroraConfig,
   starSkyConfig: StarSkyConfig,
 ) {
   if (typeof window === "undefined") return false;

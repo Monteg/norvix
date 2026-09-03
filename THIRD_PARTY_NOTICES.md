@@ -11,7 +11,5 @@ Nimitz (2017)**:
 The adaptation removes the original sky, stars, water reflection and mouse
 camera, then adds project-specific transparent compositing, procedural
 composition masks, line/depth-band controls, and an independently implemented
-procedural star canvas behind the shader. This derivative shader remains subject to the same
-Attribution-NonCommercial-ShareAlike license.
-
-The former Sabo Sugi raymarch implementation was removed from this route.
+procedural star canvas behind the shader. This derivative shader remains subject
+to the same Attribution-NonCommercial-ShareAlike license.

@@ -9,13 +9,13 @@ import {
 } from "react";
 import GUI, { type NumberController } from "lil-gui";
 import {
-  AuroraCodepenScene,
-  type AuroraCodepenMetrics,
-} from "../aurora-codepen/AuroraCodepenScene";
+  AuroraScene,
+  type AuroraMetrics,
+} from "../aurora-renderer/AuroraScene";
 import {
-  DEFAULT_CODEPEN_AURORA_CONFIG,
-  type CodepenAuroraConfig,
-} from "../aurora-codepen/config";
+  DEFAULT_AURORA_CONFIG,
+  type AuroraConfig,
+} from "../aurora-renderer/config";
 import {
   DEFAULT_STAR_SKY_CONFIG,
   type StarSkyConfig,
@@ -50,7 +50,7 @@ const DEBUG_VALUE: Record<ShaderDebug, number> = {
   curtains: 4,
 };
 
-const INITIAL_METRICS: AuroraCodepenMetrics = {
+const INITIAL_METRICS: AuroraMetrics = {
   fps: 0,
   dpr: 1,
   quality: "low",
@@ -65,8 +65,8 @@ function createSettingsFilename(savedAt: number) {
 }
 
 type NumericConfigKey = {
-  [Key in keyof CodepenAuroraConfig]-?: CodepenAuroraConfig[Key] extends number ? Key : never;
-}[keyof CodepenAuroraConfig];
+  [Key in keyof AuroraConfig]-?: AuroraConfig[Key] extends number ? Key : never;
+}[keyof AuroraConfig];
 
 type NumericStarSkyConfigKey = {
   [Key in keyof StarSkyConfig]-?: StarSkyConfig[Key] extends number ? Key : never;
@@ -129,20 +129,20 @@ function enableHorizontalScrubbing(controller: NumberController, unitsPerPixel: 
   };
 }
 
-export function CodepenAuroraPrototype() {
+export function AuroraConfigurator() {
   const webglHostRef = useRef<HTMLDivElement>(null);
   const guiHostRef = useRef<HTMLDivElement>(null);
   const presetFileInputRef = useRef<HTMLInputElement>(null);
-  const sceneRef = useRef<AuroraCodepenScene | null>(null);
+  const sceneRef = useRef<AuroraScene | null>(null);
   const guiRef = useRef<GUI | null>(null);
-  const configRef = useRef<CodepenAuroraConfig>({ ...DEFAULT_CODEPEN_AURORA_CONFIG });
+  const configRef = useRef<AuroraConfig>({ ...DEFAULT_AURORA_CONFIG });
   const starSkyConfigRef = useRef<StarSkyConfig>({ ...DEFAULT_STAR_SKY_CONFIG });
   const saveTimerRef = useRef<number | null>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [paused, setPaused] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
-  const [metrics, setMetrics] = useState<AuroraCodepenMetrics>(INITIAL_METRICS);
+  const [metrics, setMetrics] = useState<AuroraMetrics>(INITIAL_METRICS);
   const [compositeMode, setCompositeMode] = useState<CompositeMode>("composite");
   const [shaderDebug, setShaderDebug] = useState<ShaderDebug>("normal");
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -177,7 +177,7 @@ export function CodepenAuroraPrototype() {
   }, []);
 
   const applySettings = useCallback(
-    (auroraConfig: CodepenAuroraConfig, skyConfig: StarSkyConfig) => {
+    (auroraConfig: AuroraConfig, skyConfig: StarSkyConfig) => {
       Object.assign(configRef.current, auroraConfig);
       Object.assign(starSkyConfigRef.current, skyConfig);
       setStarSkyConfig({ ...skyConfig });
@@ -250,8 +250,7 @@ export function CodepenAuroraPrototype() {
   );
 
   const resetAll = useCallback(() => {
-    const nextConfig = { ...DEFAULT_CODEPEN_AURORA_CONFIG };
-    if (window.innerWidth <= 600) nextConfig.quality = "low";
+    const nextConfig = { ...DEFAULT_AURORA_CONFIG };
     Object.assign(configRef.current, nextConfig);
     Object.assign(starSkyConfigRef.current, DEFAULT_STAR_SKY_CONFIG);
     setStarSkyConfig({ ...DEFAULT_STAR_SKY_CONFIG });
@@ -307,10 +306,8 @@ export function CodepenAuroraPrototype() {
   useEffect(() => {
     const host = webglHostRef.current;
     if (!host) return;
-    if (window.innerWidth <= 600) configRef.current.quality = "low";
-
     try {
-      const scene = new AuroraCodepenScene(host, configRef.current, {
+      const scene = new AuroraScene(host, configRef.current, {
         onReady: () => setReady(true),
         onFailure: () => setFailed(true),
         onReducedMotion: setReducedMotion,
@@ -338,7 +335,7 @@ export function CodepenAuroraPrototype() {
     if (!container || guiRef.current) return;
     const config = configRef.current;
     const skyConfig = starSkyConfigRef.current;
-    const gui = new GUI({ container, title: "ShaderToy aurora", width: 320 });
+    const gui = new GUI({ container, title: "Aurora settings", width: 320 });
     guiRef.current = gui;
     const update = () => sceneRef.current?.setConfig(config);
     const updateSky = () => setStarSkyConfig({ ...skyConfig });
@@ -445,7 +442,7 @@ export function CodepenAuroraPrototype() {
     addNumber(mask, "edgeFade", "Edge Fade", 0.001);
     addNumber(mask, "centerBias", "Center Bias", 0.001);
 
-    const curtains = gui.addFolder("AURORA / NIMITZ FIELD");
+    const curtains = gui.addFolder("AURORA / FIELD");
     addNumber(curtains, "noiseScale", "Curtain Scale", 0.001);
     addNumber(curtains, "warpStrength", "Warp Strength", 0.001);
     addNumber(curtains, "curtainSharpness", "Curtain Sharpness", 0.001);
@@ -482,7 +479,7 @@ export function CodepenAuroraPrototype() {
       Pause: () => togglePause(),
       "Save to Default": () => saveCurrentSettings(),
       "Load Default Settings": () => loadSavedSettings(),
-      "Open Clean View": () => window.open("/aurora-clean", "_blank", "noopener"),
+      "Open Live View": () => window.open("/", "_blank", "noopener"),
       "Hide All UI": () => setInterfaceHidden(true),
       "Hide GUI": () => setControlsVisible(false),
     };
@@ -537,9 +534,9 @@ export function CodepenAuroraPrototype() {
   };
 
   return (
-    <main className="codepen-prototype-shell">
+    <main className="aurora-shell">
       <section
-        className={`codepen-aurora-hero is-${compositeMode} ${ready && !failed ? "is-ready" : ""} ${interfaceHidden ? "is-interface-hidden" : ""}`}
+        className={`aurora-stage is-${compositeMode} ${ready && !failed ? "is-ready" : ""} ${interfaceHidden ? "is-interface-hidden" : ""}`}
         data-ready={ready && !failed}
         data-paused={paused}
         data-composite-mode={compositeMode}
@@ -552,7 +549,7 @@ export function CodepenAuroraPrototype() {
         onDoubleClick={() => {
           if (interfaceHidden) setInterfaceHidden(false);
         }}
-        aria-label="Procedural northern lights and starfield prototype"
+        aria-label="Procedural northern lights and starfield editor"
       >
         <ProceduralStarSky
           config={starSkyConfig}
@@ -560,18 +557,14 @@ export function CodepenAuroraPrototype() {
           shootingStarTrigger={shootingStarTrigger}
         />
 
-        <div ref={webglHostRef} className="codepen-webgl-layer" aria-hidden="true" />
+        <div ref={webglHostRef} className="aurora-webgl" aria-hidden="true" />
 
-        <header className="prototype-heading codepen-heading">
-          <p className="eyebrow">Nimitz ShaderToy · procedural sky adaptation</p>
-          <h1>Aurora<br />volumetric study</h1>
+        <header className="aurora-heading">
+          <p className="eyebrow">Procedural environment</p>
+          <h1>Aurora<br />settings</h1>
         </header>
 
-        <a className="codepen-ab-link" href="/aurora-prototype">
-          Texture prototype
-        </a>
-
-        <div className="codepen-performance" aria-live="polite">
+        <div className="aurora-performance" aria-live="polite">
           <span className={`status-dot ${paused || reducedMotion || failed ? "is-idle" : ""}`} />
           <span>{status}</span>
           <span>{metrics.fps || "—"} FPS</span>
@@ -580,7 +573,7 @@ export function CodepenAuroraPrototype() {
           <span>{metrics.width || "—"}×{metrics.height || "—"}</span>
         </div>
 
-        <nav className="codepen-toolbar" aria-label="ShaderToy prototype controls">
+        <nav className="aurora-toolbar" aria-label="Aurora controls">
           <button type="button" className="hud-button hud-button-primary" onClick={togglePause}>
             {paused ? "Play" : "Pause"}
           </button>
@@ -621,9 +614,9 @@ export function CodepenAuroraPrototype() {
           <button
             type="button"
             className="hud-button"
-            onClick={() => window.open("/aurora-clean", "_blank", "noopener")}
+            onClick={() => window.open("/", "_blank", "noopener")}
           >
-            Open clean view
+            Open live view
           </button>
           <button
             type="button"
@@ -648,12 +641,12 @@ export function CodepenAuroraPrototype() {
 
         <aside
           ref={guiHostRef}
-          className={`gui-host codepen-gui-host ${controlsVisible ? "is-visible" : ""}`}
-          aria-label="ShaderToy aurora controls"
+          className={`gui-host aurora-gui-host ${controlsVisible ? "is-visible" : ""}`}
+          aria-label="Aurora settings"
         />
 
-        <p className="codepen-prototype-note">
-          Procedural starfield · transparent Nimitz aurora · no image layers
+        <p className="aurora-note">
+          Procedural starfield · transparent aurora · adaptive rendering
         </p>
       </section>
     </main>

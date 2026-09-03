@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type CSSProperties } from "react";
+import { detectPerformanceProfile } from "../performance";
 import type { StarSkyConfig } from "../star-sky/config";
 
 type ProceduralStarSkyProps = {
@@ -30,8 +31,6 @@ type ShootingStar = {
   directionY: number;
 };
 
-const STAR_FRAME_INTERVAL = 1000 / 30;
-const SHOOTING_FRAME_INTERVAL = 1000 / 60;
 const TWO_PI = Math.PI * 2;
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -91,11 +90,11 @@ function createSkyBackground(config: StarSkyConfig) {
   ].join(", ");
 }
 
-function createStars(width: number, height: number) {
+function createStars(width: number, height: number, maximumSamples: number) {
   const sizeSeed = (Math.round(width) * 73856093) ^ (Math.round(height) * 19349663);
   const random = mulberry32(0x4e4f5256 ^ sizeSeed);
   const baseCount = Math.round(Math.min(720, Math.max(260, (width * height) / 2500)));
-  const maximumCount = Math.min(baseCount * 3, 1800);
+  const maximumCount = Math.min(baseCount * 3, maximumSamples);
 
   return Array.from({ length: maximumCount }, (): Star => {
     const bright = random() > 0.955;
@@ -142,6 +141,7 @@ export function ProceduralStarSky({
     if (!context) return;
 
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const performanceProfile = detectPerformanceProfile();
     const shootingRandom = mulberry32(0x53484f54);
     let stars: Star[] = [];
     let shootingStar: ShootingStar | null = null;
@@ -293,7 +293,9 @@ export function ProceduralStarSky({
       frameId = null;
       if (!shouldAnimate()) return;
 
-      const interval = shootingStar ? SHOOTING_FRAME_INTERVAL : STAR_FRAME_INTERVAL;
+      const interval = shootingStar
+        ? 1000 / performanceProfile.shootingStarFps
+        : 1000 / performanceProfile.starFps;
       if (now - lastDraw >= interval) {
         draw(now);
         lastDraw = now;
@@ -321,11 +323,11 @@ export function ProceduralStarSky({
     const resize = () => {
       cssWidth = Math.max(canvas.clientWidth, 1);
       cssHeight = Math.max(canvas.clientHeight, 1);
-      const dpr = Math.min(window.devicePixelRatio, 1.5);
+      const dpr = Math.min(window.devicePixelRatio, performanceProfile.starMaxDpr);
       canvas.width = Math.round(cssWidth * dpr);
       canvas.height = Math.round(cssHeight * dpr);
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      stars = createStars(cssWidth, cssHeight);
+      stars = createStars(cssWidth, cssHeight, performanceProfile.maxStarSamples);
       shootingStar = null;
       scheduleShootingStar(performance.now());
       draw(performance.now());
@@ -371,8 +373,8 @@ export function ProceduralStarSky({
   } as CSSProperties;
 
   return (
-    <div className="codepen-procedural-sky" style={skyStyle} aria-hidden="true">
-      <canvas ref={canvasRef} className="codepen-star-canvas" />
+    <div className="aurora-sky" style={skyStyle} aria-hidden="true">
+      <canvas ref={canvasRef} className="aurora-stars" />
     </div>
   );
 }

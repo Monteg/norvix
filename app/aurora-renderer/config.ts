@@ -1,6 +1,6 @@
 export type AuroraQuality = "low" | "medium" | "high";
 
-export type CodepenAuroraConfig = {
+export type AuroraConfig = {
   speed: number;
   seed: number;
   offsetX: number;
@@ -43,12 +43,12 @@ export const QUALITY_PRESETS: Record<
   AuroraQuality,
   { iterations: number; maxDpr: number }
 > = {
-  low: { iterations: 32, maxDpr: 1 },
-  medium: { iterations: 42, maxDpr: 1.25 },
+  low: { iterations: 24, maxDpr: 1 },
+  medium: { iterations: 36, maxDpr: 1.25 },
   high: { iterations: 50, maxDpr: 1.75 },
 };
 
-export const DEFAULT_CODEPEN_AURORA_CONFIG: CodepenAuroraConfig = {
+export const DEFAULT_AURORA_CONFIG: AuroraConfig = {
   speed: 2.16,
   seed: 44.8,
   offsetX: 0.003,
